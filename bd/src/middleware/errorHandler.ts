@@ -10,23 +10,6 @@ interface PrismaKnownRequestError {
   code: string;
 }
 
-function isPrismaKnownError(error: unknown): error is PrismaKnownRequestError {
-  return (
-    typeof error === 'object' &&
-    error !== null &&
-    'code' in error &&
-    typeof (error as { code: unknown }).code === 'string' &&
-    (error as { code: string }).code.startsWith('P2')
-  );
-}
-
-function zodDetails(error: ZodError) {
-  return error.issues.map((issue) => ({
-    message: issue.message,
-    path: issue.path.join('.'),
-  }));
-}
-
 /**
  * Central error mapper — the single place that produces the error envelope:
  * { success: false, error: { code, message, details? } }.
@@ -93,3 +76,20 @@ export const errorHandler: ErrorRequestHandler = (error, _req, res, _next) => {
     success: false,
   });
 };
+
+function zodDetails(error: ZodError) {
+  return error.issues.map((issue) => ({
+    message: issue.message,
+    path: issue.path.join('.'),
+  }));
+}
+
+function isPrismaKnownError(error: unknown): error is PrismaKnownRequestError {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'code' in error &&
+    typeof (error as { code: unknown }).code === 'string' &&
+    (error as { code: string }).code.startsWith('P2')
+  );
+}

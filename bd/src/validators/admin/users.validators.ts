@@ -10,7 +10,10 @@ export const updateUserStatusSchema = z.object({
   isActive: z.boolean(),
 });
 
+export const updateUserRoleSchema = z.object({
+  role: z.enum(['ADMIN', 'USER']),
+});
+
 export const userIdParamSchema = idParamSchema;
 
 export type ListUsersQuery = z.infer<typeof listUsersQuerySchema>;
-export type UpdateUserStatusInput = z.infer<typeof updateUserStatusSchema>;

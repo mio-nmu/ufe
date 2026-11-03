@@ -86,13 +86,6 @@ export async function findUserById(id: string): Promise<null | SafeUser> {
   })) as null | SafeUser;
 }
 
-export async function findUserWithPasswordByEmail(email: string) {
-  return prisma.user.findUnique({
-    select: { ...SAFE_USER_SELECT, passwordHash: true },
-    where: { email },
-  });
-}
-
 export async function updateUserProfile(
   id: string,
   data: { name?: null | string },

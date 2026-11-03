@@ -3,29 +3,24 @@ import type { RequestHandler } from 'express';
 import type { Role } from '../types/index.js';
 
 import { ApiError } from '../lib/ApiError.js';
-import { asyncHandler } from '../lib/asyncHandler.js';
-import { findUserAuthById } from '../queries/user/user.queries.js';
+import { authenticate } from './authenticate.js';
 
 /**
- * Role gate for sensitive areas. The JWT claim is checked first, then the
- * role is re-verified against the database so a demoted or deactivated
- * account loses access immediately, even with a still-valid token.
- *
- * Apply at the ROUTER level (see routes/admin/index.ts) so new routes under
- * that router can never be accidentally public.
+ * Role gate for sensitive areas. Must run after `authenticate`, which has
+ * just loaded the CURRENT user record from the database — so a demoted or
+ * deactivated account already loses access on its next request, and no
+ * second lookup is needed here.
  */
 export function requireRole(role: Role): RequestHandler {
-  return asyncHandler(async (req, _res, next) => {
+  return (req, _res, next) => {
     if (!req.user) {
-      throw ApiError.unauthorized('Authentication required');
+      next(ApiError.unauthorized('Authentication required'));
+      return;
     }
-    if (req.user.role !== role) {
-      throw ApiError.forbidden();
-    }
-    const current = await findUserAuthById(req.user.id);
-    if (!current?.isActive || current.role !== role) {
-      throw ApiError.forbidden();
-    }
-    next();
-  });
+    next(req.user.role === role ? undefined : ApiError.forbidden());
+  };
 }
+
+/** The standard admin guard pair. Apply at the ROUTER level where possible
+ *  (see routes/admin/index.ts) so new routes can never be accidentally public. */
+export const requireAdmin: RequestHandler[] = [authenticate, requireRole('ADMIN')];

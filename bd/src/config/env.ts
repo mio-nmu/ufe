@@ -32,70 +32,9 @@ const envSchema = z.object({
   // edumanager). Short by request for now — rotate before production.
   STAFF_PASSWORD: z.string().min(1).default('9876'),
   STORAGE_PROVIDER: z.string().default(''), // '' (disabled) | 'cloudinary'
-  TEST_DATABASE_URL: z.string().min(1).optional(),
 });
 
-/** Prints collected problems and kills the process — env errors are never recoverable. */
-function abortEnv(problems: string[]): never {
-  console.error('❌ Invalid or missing environment variables:');
-  for (const problem of problems) {
-    console.error(`   • ${problem}`);
-  }
-  console.error('   Fix bd/.env (see bd/.env.example) and restart.');
-  process.exit(1);
-}
-
-/**
- * The admin PIN is a dev convenience: 4–8 digits, or empty (disabled). The
- * obvious default "1234" is legal in development only.
- */
-function checkPin(data: z.infer<typeof envSchema>): string[] {
-  const problems: string[] = [];
-
-  if (data.ADMIN_PIN_CODE !== '' && !/^\d{4,8}$/.test(data.ADMIN_PIN_CODE)) {
-    problems.push('ADMIN_PIN_CODE: must be 4–8 digits, or empty to disable PIN login');
-  }
-  if (data.NODE_ENV === 'production' && data.ADMIN_PIN_CODE === '1234') {
-    problems.push(
-      'ADMIN_PIN_CODE: change the default before production, or empty it to disable PIN login',
-    );
-  }
-
-  return problems;
-}
-
-/**
- * Media storage is configured all-or-nothing: selecting a provider with
- * half-set credentials must fail at boot, not at the first upload. An empty
- * STORAGE_PROVIDER disables the media endpoints (503) — useful for content-only
- * development without a storage account.
- */
-function checkStorage(data: z.infer<typeof envSchema>): string[] {
-  const cloudinaryKeys = [
-    'CLOUDINARY_API_KEY',
-    'CLOUDINARY_API_SECRET',
-    'CLOUDINARY_CLOUD_NAME',
-    'CLOUDINARY_FOLDER',
-  ] as const;
-  const provided = cloudinaryKeys.filter((key) => data[key].trim() !== '');
-  const problems: string[] = [];
-
-  if (data.STORAGE_PROVIDER !== '' && data.STORAGE_PROVIDER !== 'cloudinary') {
-    problems.push("STORAGE_PROVIDER: must be 'cloudinary' or empty (disabled)");
-  }
-  if (data.STORAGE_PROVIDER === 'cloudinary' && provided.length < cloudinaryKeys.length) {
-    problems.push(
-      `STORAGE_PROVIDER=cloudinary requires all four CLOUDINARY_* variables — got ${provided.length} of 4`,
-    );
-  }
-  if (data.STORAGE_PROVIDER === '' && provided.length > 0) {
-    problems.push(
-      `CLOUDINARY_* variables are set but STORAGE_PROVIDER is empty — set it to 'cloudinary' or clear them`,
-    );
-  }
-
-  return problems;
-}
+export const env = loadEnv();
 
 function loadEnv() {
   const raw: NodeJS.ProcessEnv = { ...process.env };
@@ -140,6 +79,80 @@ function loadEnv() {
 }
 
 /**
+ * Dashboard env fields (Vercel/Heroku) keep pasted quotes literally —
+ * `DATABASE_URL="mongodb+srv://…"` then fails provider validation and
+ * `CORS_ORIGIN="https://…"` never matches an Origin. Strip one layer of
+ * matching surrounding quotes and outer whitespace from every value.
+ */
+function normalizeEnvValue(value: string): string {
+  const trimmed = value.trim();
+  const quoted = /^(["'])(.*)\1$/u.exec(trimmed);
+  return quoted?.[2] ?? trimmed;
+}
+
+/** Prints collected problems and kills the process — env errors are never recoverable. */
+function abortEnv(problems: string[]): never {
+  console.error('❌ Invalid or missing environment variables:');
+  for (const problem of problems) {
+    console.error(`   • ${problem}`);
+  }
+  console.error('   Fix bd/.env (see bd/.env.example) and restart.');
+  process.exit(1);
+}
+
+/**
+ * Media storage is configured all-or-nothing: selecting a provider with
+ * half-set credentials must fail at boot, not at the first upload. An empty
+ * STORAGE_PROVIDER disables the media endpoints (503) — useful for content-only
+ * development without a storage account.
+ */
+function checkStorage(data: z.infer<typeof envSchema>): string[] {
+  const cloudinaryKeys = [
+    'CLOUDINARY_API_KEY',
+    'CLOUDINARY_API_SECRET',
+    'CLOUDINARY_CLOUD_NAME',
+    'CLOUDINARY_FOLDER',
+  ] as const;
+  const provided = cloudinaryKeys.filter((key) => data[key].trim() !== '');
+  const problems: string[] = [];
+
+  if (data.STORAGE_PROVIDER !== '' && data.STORAGE_PROVIDER !== 'cloudinary') {
+    problems.push("STORAGE_PROVIDER: must be 'cloudinary' or empty (disabled)");
+  }
+  if (data.STORAGE_PROVIDER === 'cloudinary' && provided.length < cloudinaryKeys.length) {
+    problems.push(
+      `STORAGE_PROVIDER=cloudinary requires all four CLOUDINARY_* variables — got ${provided.length} of 4`,
+    );
+  }
+  if (data.STORAGE_PROVIDER === '' && provided.length > 0) {
+    problems.push(
+      `CLOUDINARY_* variables are set but STORAGE_PROVIDER is empty — set it to 'cloudinary' or clear them`,
+    );
+  }
+
+  return problems;
+}
+
+/**
+ * The admin PIN is a dev convenience: 4–8 digits, or empty (disabled). The
+ * obvious default "1234" is legal in development only.
+ */
+function checkPin(data: z.infer<typeof envSchema>): string[] {
+  const problems: string[] = [];
+
+  if (data.ADMIN_PIN_CODE !== '' && !/^\d{4,8}$/.test(data.ADMIN_PIN_CODE)) {
+    problems.push('ADMIN_PIN_CODE: must be 4–8 digits, or empty to disable PIN login');
+  }
+  if (data.NODE_ENV === 'production' && data.ADMIN_PIN_CODE === '1234') {
+    problems.push(
+      'ADMIN_PIN_CODE: change the default before production, or empty it to disable PIN login',
+    );
+  }
+
+  return problems;
+}
+
+/**
  * The cookie `domain` option must be a bare hostname — a pasted URL
  * (`https://site.vercel.app`) makes res.cookie() throw "option domain is
  * invalid" on every successful login. Extract the hostname when a URL was
@@ -161,18 +174,3 @@ function normalizeCookieDomain(value: string | undefined): string {
     ? host
     : '';
 }
-
-/**
- * Dashboard env fields (Vercel/Heroku) keep pasted quotes literally —
- * `DATABASE_URL="mongodb+srv://…"` then fails provider validation and
- * `CORS_ORIGIN="https://…"` never matches an Origin. Strip one layer of
- * matching surrounding quotes and outer whitespace from every value.
- */
-function normalizeEnvValue(value: string): string {
-  const trimmed = value.trim();
-  const quoted = /^(["'])(.*)\1$/u.exec(trimmed);
-  return quoted?.[2] ?? trimmed;
-}
-
-export const env = loadEnv();
-export type Env = ReturnType<typeof loadEnv>;

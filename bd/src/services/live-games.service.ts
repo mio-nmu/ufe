@@ -1,9 +1,25 @@
+import type { LiveGameEvent } from '../generated/prisma/index.js';
+
 import { ApiError } from '../lib/ApiError.js';
 import { emitLiveGameChanged } from '../lib/live-game-events.js';
 import { prisma } from '../lib/prisma.js';
 
 const PERIOD_SECONDS = 12 * 60;
+/** Four quarters, then up to four 5-minute overtimes (period 5 = OT1). */
+const REGULATION_PERIODS = 4;
+const MAX_PERIOD = 8;
+const OVERTIME_SECONDS = 5 * 60;
+
 const actionQueues = new Map<string, Promise<void>>();
+
+/** What a scorer action returns: the new state plus the history entry it
+ *  recorded (and, for undo, the event it reversed) so the scorer can update
+ *  its log without refetching it. */
+export interface ActionResult {
+  event: LiveGameEvent;
+  reversedEventId?: string;
+  state: LiveGameState;
+}
 
 export interface LiveGameState {
   clockRunning: boolean;
@@ -37,7 +53,7 @@ type Action =
   | { type: 'start' }
   | { type: 'undo' };
 
-export async function applyAction(gameId: string, action: Action): Promise<LiveGameState> {
+export async function applyAction(gameId: string, action: Action): Promise<ActionResult> {
   const previous = actionQueues.get(gameId) ?? Promise.resolve();
   let release!: () => void;
   const current = new Promise<void>((resolve) => {
@@ -54,44 +70,11 @@ export async function applyAction(gameId: string, action: Action): Promise<LiveG
   }
 }
 
-export async function ensureState(gameId: string): Promise<LiveGameState> {
-  const game = await prisma.game.findUnique({ where: { id: gameId } });
-  if (!game) throw ApiError.notFound('Game not found');
-  const state = await prisma.liveGame.upsert({
-    create: { gameId, lineup: [], teamFouls: [0, 0, 0, 0] },
-    update: {},
-    where: { gameId },
-  });
-  return normalise(state as LiveGameState);
-}
-
-export async function getState(gameId: string): Promise<LiveGameState | null> {
-  const state = await prisma.liveGame.findUnique({ where: { gameId } });
-  return state ? normalise(state as LiveGameState) : null;
-}
-
-export async function listEvents(gameId: string) {
-  return prisma.liveGameEvent.findMany({
-    orderBy: { createdAt: 'desc' },
-    take: 100,
-    where: { gameId },
-  });
-}
-
-export async function reverseEvent(gameId: string, eventId: string): Promise<LiveGameState> {
-  const event = await prisma.liveGameEvent.findFirst({
-    where: { gameId, id: eventId, reversed: false },
-  });
-  if (!event) throw ApiError.notFound('Event not found');
-  await prisma.liveGameEvent.update({ data: { reversed: true }, where: { id: eventId } });
-  throw ApiError.badRequest(
-    'Event reversal is recorded; use manual adjustment to correct the current score',
-  );
-}
-
-async function applyActionInQueue(gameId: string, action: Action): Promise<LiveGameState> {
-  const current = await ensureState(gameId);
-  const state = normalise(current);
+async function applyActionInQueue(gameId: string, action: Action): Promise<ActionResult> {
+  // The row normally exists (the scorer calls /ensure when opening a game);
+  // fall back to ensureState only on first use.
+  const existing = await prisma.liveGame.findUnique({ where: { gameId } });
+  const state = existing ? normalise(existing as LiveGameState) : await ensureState(gameId);
   if (action.type === 'undo') {
     const event = await prisma.liveGameEvent.findFirst({
       orderBy: { createdAt: 'desc' },
@@ -123,12 +106,12 @@ async function applyActionInQueue(gameId: string, action: Action): Promise<LiveG
     } else {
       throw ApiError.badRequest('This event cannot be undone automatically');
     }
-    const updated = await prisma.$transaction(async (tx) => {
+    const [created, updated] = await prisma.$transaction(async (tx) => {
       await tx.liveGameEvent.update({ data: { reversed: true }, where: { id: event.id } });
-      await tx.liveGameEvent.create({
+      const undoEvent = await tx.liveGameEvent.create({
         data: { gameId, payload: { eventId: event.id }, type: 'undo' },
       });
-      return tx.liveGame.update({
+      const row = await tx.liveGame.update({
         data: {
           opponentFouls: inverse.opponentFouls,
           opponentScore: inverse.opponentScore,
@@ -138,9 +121,11 @@ async function applyActionInQueue(gameId: string, action: Action): Promise<LiveG
         },
         where: { gameId },
       });
+      return [undoEvent, row] as const;
     });
-    emitLiveGameChanged(gameId);
-    return normalise(updated as LiveGameState);
+    const next = normalise(updated as LiveGameState);
+    emitLiveGameChanged(gameId, next);
+    return { event: created, reversedEventId: event.id, state: next };
   }
   const data: Record<string, unknown> = {};
   let status = state.status;
@@ -171,12 +156,9 @@ async function applyActionInQueue(gameId: string, action: Action): Promise<LiveG
       clockSeconds = Math.max(0, Math.min(PERIOD_SECONDS, action.seconds));
     clockRunning = action.running && clockSeconds > 0;
   } else if (action.type === 'period') {
-    period = Math.max(1, Math.min(4, action.period));
-    clockSeconds = PERIOD_SECONDS;
+    period = Math.max(1, Math.min(MAX_PERIOD, action.period));
+    clockSeconds = periodSeconds(period);
     clockRunning = false;
-    teamFouls = Array.from({ length: 4 }, (_, index) =>
-      index === period - 1 ? (teamFouls[index] ?? 0) : (teamFouls[index] ?? 0),
-    );
   } else if (action.type === 'lineup') {
     // Any size up to five is legal: the scorer builds the floor tap-by-tap
     // (1st..5th player each send an interim lineup) and an empty list
@@ -215,11 +197,24 @@ async function applyActionInQueue(gameId: string, action: Action): Promise<LiveG
     data.endedAt = null;
   }
 
-  const updated = await prisma.$transaction(async (tx) => {
-    await tx.liveGameEvent.create({
+  const [created, updated] = await prisma.$transaction(async (tx) => {
+    const event = await tx.liveGameEvent.create({
       data: { gameId, payload: action, type: action.type },
     });
-    return tx.liveGame.update({
+    // The scoreboard and the schedule are one game: ending it publishes the
+    // result on the Game row; resetting a game the scorer had ended reopens it.
+    if (action.type === 'end') {
+      await tx.game.update({
+        data: { opponentScore, status: 'FINAL', teamScore },
+        where: { id: gameId },
+      });
+    } else if (action.type === 'reset' && state.status === 'FINAL') {
+      await tx.game.update({
+        data: { opponentScore: null, status: 'SCHEDULED', teamScore: null },
+        where: { id: gameId },
+      });
+    }
+    const row = await tx.liveGame.update({
       data: {
         ...data,
         clockRunning,
@@ -235,15 +230,51 @@ async function applyActionInQueue(gameId: string, action: Action): Promise<LiveG
       },
       where: { gameId },
     });
+    return [event, row] as const;
   });
-  emitLiveGameChanged(gameId);
-  return normalise(updated as LiveGameState);
+  const next = normalise(updated as LiveGameState);
+  emitLiveGameChanged(gameId, next);
+  return { event: created, state: next };
 }
 
+const periodSeconds = (period: number) =>
+  period > REGULATION_PERIODS ? OVERTIME_SECONDS : PERIOD_SECONDS;
+
+export async function ensureState(gameId: string): Promise<LiveGameState> {
+  const game = await prisma.game.findUnique({ where: { id: gameId } });
+  if (!game) throw ApiError.notFound('Game not found');
+  const state = await prisma.liveGame.upsert({
+    create: { gameId, lineup: [], teamFouls: [0, 0, 0, 0] },
+    update: {},
+    where: { gameId },
+  });
+  return normalise(state as LiveGameState);
+}
+
+export async function getState(gameId: string): Promise<LiveGameState | null> {
+  const state = await prisma.liveGame.findUnique({ where: { gameId } });
+  return state ? normalise(state as LiveGameState) : null;
+}
+
+export async function listEvents(gameId: string) {
+  return prisma.liveGameEvent.findMany({
+    orderBy: { createdAt: 'desc' },
+    take: 100,
+    where: { gameId },
+  });
+}
+
+/**
+ * Projects a stored row to "now": a running clock has `clockSeconds` as of
+ * `updatedAt`, so the elapsed whole seconds are burned in AND `updatedAt`
+ * moves forward by the same amount — clients tick down from `updatedAt`, so
+ * leaving the old timestamp would subtract the elapsed time twice.
+ */
 function normalise(state: LiveGameState): LiveGameState {
+  const now = Date.now();
   const elapsed =
     state.clockRunning && state.updatedAt
-      ? Math.max(0, Math.floor((Date.now() - state.updatedAt.getTime()) / 1000))
+      ? Math.max(0, Math.floor((now - state.updatedAt.getTime()) / 1000))
       : 0;
   return {
     ...state,
@@ -251,5 +282,6 @@ function normalise(state: LiveGameState): LiveGameState {
     clockSeconds: Math.max(0, state.clockSeconds - elapsed),
     opponentFouls: state.opponentFouls ?? [0, 0, 0, 0],
     teamFouls: state.teamFouls ?? [0, 0, 0, 0],
+    updatedAt: elapsed > 0 ? new Date(state.updatedAt.getTime() + elapsed * 1000) : state.updatedAt,
   };
 }

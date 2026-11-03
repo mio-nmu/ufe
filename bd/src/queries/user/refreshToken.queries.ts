@@ -16,19 +16,6 @@ export function createRefreshToken(data: { expiresAt: Date; tokenHash: string; u
   return prisma.refreshToken.create({ data });
 }
 
-/** Housekeeping: drop expired tokens and tokens revoked more than 24h ago. */
-export function deleteExpiredRefreshTokens() {
-  const now = new Date();
-  return prisma.refreshToken.deleteMany({
-    where: {
-      OR: [
-        { expiresAt: { lt: now } },
-        { revokedAt: { lt: new Date(now.getTime() - 24 * 60 * 60 * 1000) } },
-      ],
-    },
-  });
-}
-
 export function deleteRefreshTokenByHash(tokenHash: string) {
   return prisma.refreshToken.delete({ where: { tokenHash } });
 }

@@ -15,6 +15,16 @@ cloudinary.config({
   secure: true,
 });
 
+/** Cloudinary `format` → MIME type ('jpg' is Cloudinary's spelling of JPEG). */
+const FORMAT_MIME: Record<string, string> = {
+  avif: 'image/avif',
+  gif: 'image/gif',
+  jpeg: 'image/jpeg',
+  jpg: 'image/jpeg',
+  png: 'image/png',
+  webp: 'image/webp',
+};
+
 export interface DirectUploadParams {
   apiKey: string;
   cloudName: string;
@@ -33,9 +43,14 @@ export interface StoredImage {
   width: null | number;
 }
 
-export async function deleteImage(publicId: string): Promise<void> {
-  requireConfigured();
-  await cloudinary.uploader.destroy(publicId, { invalidate: true, resource_type: 'image' });
+export interface FetchedImageAsset {
+  bytes: number;
+  format: string;
+  height: null | number;
+  mime: string;
+  publicId: string;
+  url: string;
+  width: null | number;
 }
 
 /**
@@ -61,68 +76,6 @@ export function signDirectUpload(subfolder: string): DirectUploadParams {
     folder,
     signature,
     timestamp,
-  };
-}
-
-/** Cloudinary `format` → MIME type ('jpg' is Cloudinary's spelling of JPEG). */
-const FORMAT_MIME: Record<string, string> = {
-  avif: 'image/avif',
-  gif: 'image/gif',
-  jpeg: 'image/jpeg',
-  jpg: 'image/jpeg',
-  png: 'image/png',
-  webp: 'image/webp',
-};
-
-export interface FetchedImageAsset {
-  bytes: number;
-  format: string;
-  height: null | number;
-  mime: string;
-  publicId: string;
-  url: string;
-  width: null | number;
-}
-
-/**
- * Reads an uploaded asset back from Cloudinary's Admin API. Registering uses
- * this instead of client-supplied metadata (url, dimensions, size) so a
- * tampered register payload cannot fabricate a media row. Throws 404-shaped
- * ApiErrors when the asset does not exist or is not an allowlisted image.
- */
-export async function fetchImageAsset(publicId: string): Promise<FetchedImageAsset> {
-  requireConfigured();
-
-  let response: {
-    bytes?: unknown;
-    format?: unknown;
-    height?: unknown;
-    secure_url?: unknown;
-    width?: unknown;
-  };
-  try {
-    response = (await cloudinary.api.resource(publicId, {
-      resource_type: 'image',
-    })) as typeof response;
-  } catch (error) {
-    logger.warn({ err: error, publicId }, 'Cloudinary asset lookup failed');
-    throw ApiError.badRequest('No uploaded image exists for this publicId');
-  }
-
-  const format = typeof response.format === 'string' ? response.format : '';
-  const mime = FORMAT_MIME[format] ?? '';
-  if (!mime || !(MEDIA_MIME_ALLOWLIST as readonly string[]).includes(mime)) {
-    throw ApiError.badRequest('Unsupported image format (allowed: JPEG, PNG, WebP, GIF, AVIF)');
-  }
-
-  return {
-    bytes: typeof response.bytes === 'number' ? response.bytes : 0,
-    format,
-    height: typeof response.height === 'number' ? response.height : null,
-    mime,
-    publicId,
-    url: typeof response.secure_url === 'string' ? response.secure_url : '',
-    width: typeof response.width === 'number' ? response.width : null,
   };
 }
 
@@ -223,6 +176,53 @@ function providerErrorDetails(error: unknown): {
   }
 
   return { message: 'Unknown provider error' };
+}
+
+/**
+ * Reads an uploaded asset back from Cloudinary's Admin API. Registering uses
+ * this instead of client-supplied metadata (url, dimensions, size) so a
+ * tampered register payload cannot fabricate a media row. Throws 404-shaped
+ * ApiErrors when the asset does not exist or is not an allowlisted image.
+ */
+export async function fetchImageAsset(publicId: string): Promise<FetchedImageAsset> {
+  requireConfigured();
+
+  let response: {
+    bytes?: unknown;
+    format?: unknown;
+    height?: unknown;
+    secure_url?: unknown;
+    width?: unknown;
+  };
+  try {
+    response = (await cloudinary.api.resource(publicId, {
+      resource_type: 'image',
+    })) as typeof response;
+  } catch (error) {
+    logger.warn({ err: error, publicId }, 'Cloudinary asset lookup failed');
+    throw ApiError.badRequest('No uploaded image exists for this publicId');
+  }
+
+  const format = typeof response.format === 'string' ? response.format : '';
+  const mime = FORMAT_MIME[format] ?? '';
+  if (!mime || !(MEDIA_MIME_ALLOWLIST as readonly string[]).includes(mime)) {
+    throw ApiError.badRequest('Unsupported image format (allowed: JPEG, PNG, WebP, GIF, AVIF)');
+  }
+
+  return {
+    bytes: typeof response.bytes === 'number' ? response.bytes : 0,
+    format,
+    height: typeof response.height === 'number' ? response.height : null,
+    mime,
+    publicId,
+    url: typeof response.secure_url === 'string' ? response.secure_url : '',
+    width: typeof response.width === 'number' ? response.width : null,
+  };
+}
+
+export async function deleteImage(publicId: string): Promise<void> {
+  requireConfigured();
+  await cloudinary.uploader.destroy(publicId, { invalidate: true, resource_type: 'image' });
 }
 
 function requireConfigured(): void {

@@ -6,7 +6,7 @@ import { ok } from '../utils/http.js';
 
 export async function action(req: Request, res: Response): Promise<void> {
   const { id } = req.params as { id: string };
-  ok(res, { state: await liveGames.applyAction(id, req.body) });
+  ok(res, await liveGames.applyAction(id, req.body));
 }
 
 export async function ensureState(req: Request, res: Response): Promise<void> {

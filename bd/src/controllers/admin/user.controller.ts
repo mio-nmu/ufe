@@ -19,6 +19,13 @@ export async function listUsers(req: Request, res: Response): Promise<void> {
   ok(res, result);
 }
 
+export async function updateUserRole(req: Request, res: Response): Promise<void> {
+  if (!req.user) throw ApiError.unauthorized('Authentication required');
+  const { id } = req.params as unknown as { id: string };
+  const user = await adminUserService.setUserRole(req.user.id, id, req.body.role);
+  ok(res, { user });
+}
+
 export async function updateUserStatus(req: Request, res: Response): Promise<void> {
   if (!req.user) throw ApiError.unauthorized('Authentication required');
   const { id } = req.params as unknown as { id: string };

@@ -18,6 +18,17 @@ const STAFF_ACCOUNTS = [
   { display: 'Боловсролын менежер', username: 'edumanager' },
 ] as const;
 
+async function main(): Promise<void> {
+  await ensureUsernameIndex();
+  await seedStaffAccounts();
+
+  const staff = await prisma.user.count();
+  console.log('✅ Seed complete (bootstrap only — no demo content) —');
+  console.log(`   users: ${staff}`);
+  console.log('   staff logins: manager / editor / edumanager — all ADMIN, same admin side');
+  console.log(`   password: ${env.STAFF_PASSWORD} (STAFF_PASSWORD — rotate before production)`);
+}
+
 /**
  * Usernames must be unique ONLY when present — plain (registered) accounts
  * have none. MongoDB's regular unique indexes count null/missing as a
@@ -36,17 +47,6 @@ async function ensureUsernameIndex(): Promise<void> {
       },
     ],
   });
-}
-
-async function main(): Promise<void> {
-  await ensureUsernameIndex();
-  await seedStaffAccounts();
-
-  const staff = await prisma.user.count();
-  console.log('✅ Seed complete (bootstrap only — no demo content) —');
-  console.log(`   users: ${staff}`);
-  console.log('   staff logins: manager / editor / edumanager — all ADMIN, same admin side');
-  console.log(`   password: ${env.STAFF_PASSWORD} (STAFF_PASSWORD — rotate before production)`);
 }
 
 async function seedStaffAccounts(): Promise<void> {

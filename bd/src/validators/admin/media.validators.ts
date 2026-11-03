@@ -33,8 +33,6 @@ export const mediaUploadFieldsSchema = z.object({
     .default('uploads'),
 });
 
-export type MediaUploadFields = z.infer<typeof mediaUploadFieldsSchema>;
-
 /** Body for POST /admin/media/direct-params — subfolder is optional. */
 export const mediaDirectParamsSchema = z.object({
   folder: z

@@ -24,7 +24,7 @@ export const SITE_CONTENT_PAGES = {
   'front-office': ['hero'],
   general: ['brand', 'contact'],
   history: ['page'],
-  home: ['fanmail', 'hero', 'news', 'stats', 'thanks'],
+  home: ['fanmail', 'hero', 'news', 'stats', 'thanks', 'timeline'],
   photos: ['hero'],
   players: ['page'],
   schedule: ['hero'],
@@ -32,25 +32,6 @@ export const SITE_CONTENT_PAGES = {
 } as const satisfies Record<string, readonly string[]>;
 
 export const SITE_CONTENT_MAX_JSON_LENGTH = 8000;
-
-// ─── Content blocks (live-editable site text) ────────────────────────────────
-
-export const CONTENT_BLOCK_TYPES = ['image', 'json', 'richtext', 'text'] as const;
-
-export const CONTENT_DEFAULT_LOCALE = 'mn';
-
-export const CONTENT_ENSURE_MAX_BLOCKS = 200;
-
-export const CONTENT_KEY_PATTERN = /^[a-z0-9][a-z0-9._-]{0,78}$/;
-
-export const CONTENT_LOCALE_PATTERN = /^[a-z]{2}(-[A-Z]{2})?$/;
-
-export const CONTENT_PAGE_PATTERN = /^[a-z0-9][a-z0-9-]{0,58}$/;
-
-export const CONTENT_VALUE_MAX_LENGTH = 20_000;
-
-/** `image` blocks hold a single http(s) URL (short by nature). */
-export const CONTENT_IMAGE_URL_MAX_LENGTH = 2_048;
 
 // ─── Media uploads (Cloudinary) ──────────────────────────────────────────────
 
@@ -82,9 +63,3 @@ export const HISTORY_PHOTO_FOLDER_PATTERN = /^\d{4}(-\d{4})?$/;
 export const HISTORY_PHOTO_CAPTION_MAX_LENGTH = 200;
 
 export const HISTORY_PHOTO_SORT_MAX = 999;
-
-// ─── SSE live updates ────────────────────────────────────────────────────────
-
-export const SSE_HEARTBEAT_INTERVAL_MS = 25_000;
-
-export const SSE_MAX_CONNECTIONS_PER_IP = 6;

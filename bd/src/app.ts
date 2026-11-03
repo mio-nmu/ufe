@@ -40,7 +40,7 @@ export function buildApp(): Express {
   }
   app.use(helmet());
 
-  // Liveness/readiness for docker & load balancers (outside the versioned
+  // Liveness/readiness for hosting platforms & load balancers (outside the versioned
   // API). Mounted BEFORE the CORS allowlist on purpose — health checks must
   // answer any origin with a plain success/failure message.
   app.use('/health', healthRouter);

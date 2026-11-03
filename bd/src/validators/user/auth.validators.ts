@@ -23,7 +23,3 @@ export const loginSchema = z.object({
 export const pinLoginSchema = z.object({
   code: z.string().regex(/^\d{4,8}$/, 'PIN code must be 4–8 digits'),
 });
-
-export type LoginInput = z.infer<typeof loginSchema>;
-export type PinLoginInput = z.infer<typeof pinLoginSchema>;
-export type RegisterInput = z.infer<typeof registerSchema>;

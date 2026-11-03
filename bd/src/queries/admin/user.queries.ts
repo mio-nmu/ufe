@@ -46,3 +46,11 @@ export async function setUserActive(id: string, isActive: boolean): Promise<Safe
     where: { id },
   })) as SafeUser;
 }
+
+export async function setUserRole(id: string, role: 'ADMIN' | 'USER'): Promise<SafeUser> {
+  return (await prisma.user.update({
+    data: { role },
+    select: SAFE_USER_SELECT,
+    where: { id },
+  })) as SafeUser;
+}

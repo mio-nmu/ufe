@@ -1,32 +1,21 @@
-import type { RequestHandler } from 'express';
-
 import { Router } from 'express';
 
-import * as collections from '../../controllers/content/collections.controller.js';
-import * as executives from '../../controllers/content/executives.controller.js';
-import * as games from '../../controllers/content/games.controller.js';
 import * as historyPhotos from '../../controllers/content/history-photos.controller.js';
-import * as news from '../../controllers/content/news.controller.js';
-import * as players from '../../controllers/content/players.controller.js';
-import * as shop from '../../controllers/content/shop.controller.js';
 import * as siteContent from '../../controllers/content/site-content.controller.js';
-import * as videos from '../../controllers/content/videos.controller.js';
 import { asyncHandler } from '../../lib/asyncHandler.js';
-import { authenticate } from '../../middleware/authenticate.js';
-import { optionalAuth } from '../../middleware/optionalAuth.js';
+import { prisma } from '../../lib/prisma.js';
 import { publicReadCache } from '../../middleware/publicReadCache.js';
-import { requireRole } from '../../middleware/requireRole.js';
+import { requireAdmin } from '../../middleware/requireRole.js';
 import { validate } from '../../middleware/validate.js';
+import { extractYouTubeId, youTubeThumbUrl } from '../../utils/youtube.js';
 import {
   createAlbumSchema,
   createExecutiveSchema,
   createGameSchema,
   createHistoryPhotoSchema,
   createNewsSchema,
-  createPartnerSchema,
   createPlayerSchema,
   createShopProductSchema,
-  createStandingSchema,
   createVideoSchema,
   idParamSchema,
   listAlbumsQuerySchema,
@@ -39,30 +28,26 @@ import {
   pageParamSchema,
   sectionParamSchema,
   siteContentPutSchema,
-  slugParamSchema,
   updateAlbumSchema,
   updateExecutiveSchema,
   updateGameSchema,
   updateHistoryPhotoSchema,
   updateNewsSchema,
-  updatePartnerSchema,
   updatePlayerSchema,
   updateShopProductSchema,
-  updateStandingSchema,
   updateVideoSchema,
 } from '../../validators/content/content.validators.js';
-import { blocksRouter } from './blocks.routes.js';
+import { mountCrud, when } from './crud-router.js';
 
 /**
  * Team site content surface, mounted at /api/v1/content.
  *
  * Public side only ever GETs (unauthenticated, ISR-cached upstream). Every
  * write verb is guarded by authenticate + requireRole('ADMIN') — the same
- * resource path serves both sides; the verb decides the auth.
+ * resource path serves both sides; the verb decides the auth. Plain
+ * collections go through mountCrud(); history photos (Cloudinary-backed) and
+ * site copy (page/section blobs) keep dedicated handlers.
  */
-
-/** Router-level guard pair for every mutating route below. */
-const adminWrite = [authenticate, requireRole('ADMIN')] as unknown as RequestHandler[];
 
 export const contentRouter = Router();
 
@@ -70,266 +55,147 @@ export const contentRouter = Router();
 // writes and authed reads are never cached.
 contentRouter.use(publicReadCache);
 
-// ── Content blocks (live-editable site text, SSE updates) ────────────────────
-contentRouter.use('/blocks', blocksRouter);
-
 // ── News (мэдээ) ─────────────────────────────────────────────────────────────
-contentRouter.get('/news', validate({ query: listNewsQuerySchema }), asyncHandler(news.listNews));
-contentRouter.get(
-  '/news/slug/:slug',
-  validate({ params: slugParamSchema }),
-  asyncHandler(news.getNewsBySlug),
-);
-contentRouter.post(
-  '/news',
-  ...adminWrite,
-  validate({ body: createNewsSchema }),
-  asyncHandler(news.createNews),
-);
-contentRouter.patch(
-  '/news/:id',
-  ...adminWrite,
-  validate({ body: updateNewsSchema, params: idParamSchema }),
-  asyncHandler(news.updateNews),
-);
-contentRouter.delete(
-  '/news/:id',
-  ...adminWrite,
-  validate({ params: idParamSchema }),
-  asyncHandler(news.deleteNews),
-);
+mountCrud(contentRouter, '/news', {
+  key: 'post',
+  list: (query, hidden) => ({
+    orderBy: { publishedAt: 'desc' },
+    take: (query.limit as number | undefined) ?? 50,
+    where: {
+      ...(hidden ? {} : { isPublished: true }),
+      ...when('category', query.category),
+      ...when('isFeatured', query.featured),
+    },
+  }),
+  listQuery: listNewsQuerySchema,
+  model: 'newsPost',
+  schemas: { create: createNewsSchema, update: updateNewsSchema },
+  slug: { notFound: 'News post not found', where: { isPublished: true } },
+  supportsHidden: true,
+});
 
 // ── Players (багийн бүрэлдэхүүн) ─────────────────────────────────────────────
-contentRouter.get(
-  '/players',
-  optionalAuth,
-  validate({ query: listPlayersQuerySchema }),
-  asyncHandler(players.listPlayers),
-);
-contentRouter.get(
-  '/players/slug/:slug',
-  validate({ params: slugParamSchema }),
-  asyncHandler(players.getPlayerBySlug),
-);
-contentRouter.post(
-  '/players',
-  ...adminWrite,
-  validate({ body: createPlayerSchema }),
-  asyncHandler(players.createPlayer),
-);
-contentRouter.patch(
-  '/players/:id',
-  ...adminWrite,
-  validate({ body: updatePlayerSchema, params: idParamSchema }),
-  asyncHandler(players.updatePlayer),
-);
-contentRouter.delete(
-  '/players/:id',
-  ...adminWrite,
-  validate({ params: idParamSchema }),
-  asyncHandler(players.deletePlayer),
-);
+mountCrud(contentRouter, '/players', {
+  key: 'player',
+  list: (query, hidden) => ({
+    orderBy: [{ sortOrder: 'asc' }, { number: 'asc' }],
+    where: { ...(hidden ? {} : { isPublic: true }), ...when('role', query.role) },
+  }),
+  listQuery: listPlayersQuerySchema,
+  model: 'player',
+  schemas: { create: createPlayerSchema, update: updatePlayerSchema },
+  slug: { notFound: 'Player not found', where: { isPublic: true } },
+  supportsHidden: true,
+});
 
 // ── Games (хуваарь & үр дүн) ─────────────────────────────────────────────────
-contentRouter.get(
-  '/games',
-  validate({ query: listGamesQuerySchema }),
-  asyncHandler(games.listGames),
-);
-contentRouter.post(
-  '/games',
-  ...adminWrite,
-  validate({ body: createGameSchema }),
-  asyncHandler(games.createGame),
-);
-contentRouter.patch(
-  '/games/:id',
-  ...adminWrite,
-  validate({ body: updateGameSchema, params: idParamSchema }),
-  asyncHandler(games.updateGame),
-);
-contentRouter.delete(
-  '/games/:id',
-  ...adminWrite,
-  validate({ params: idParamSchema }),
-  asyncHandler(games.deleteGame),
-);
-
-// ── Standings (хүснэгт) ──────────────────────────────────────────────────────
-contentRouter.get('/standings', asyncHandler(collections.listStandings));
-contentRouter.post(
-  '/standings',
-  ...adminWrite,
-  validate({ body: createStandingSchema }),
-  asyncHandler(collections.createStanding),
-);
-contentRouter.patch(
-  '/standings/:id',
-  ...adminWrite,
-  validate({ body: updateStandingSchema, params: idParamSchema }),
-  asyncHandler(collections.updateStanding),
-);
-contentRouter.delete(
-  '/standings/:id',
-  ...adminWrite,
-  validate({ params: idParamSchema }),
-  asyncHandler(collections.deleteStanding),
-);
-
-// ── Partners (ивээн тэтгэгчид) ───────────────────────────────────────────────
-contentRouter.get('/partners', asyncHandler(collections.listPartners));
-contentRouter.post(
-  '/partners',
-  ...adminWrite,
-  validate({ body: createPartnerSchema }),
-  asyncHandler(collections.createPartner),
-);
-contentRouter.patch(
-  '/partners/:id',
-  ...adminWrite,
-  validate({ body: updatePartnerSchema, params: idParamSchema }),
-  asyncHandler(collections.updatePartner),
-);
-contentRouter.delete(
-  '/partners/:id',
-  ...adminWrite,
-  validate({ params: idParamSchema }),
-  asyncHandler(collections.deletePartner),
-);
+// Scheduled games list soonest-first, finished games most-recent-first;
+// month=YYYY-MM narrows to that calendar month.
+mountCrud(contentRouter, '/games', {
+  // A deleted game takes its live scoreboard and event history with it.
+  beforeDelete: (gameId) =>
+    prisma.$transaction([
+      prisma.liveGameEvent.deleteMany({ where: { gameId } }),
+      prisma.liveGame.deleteMany({ where: { gameId } }),
+    ]),
+  key: 'game',
+  list: (query) => {
+    const month = query.month as string | undefined;
+    const start = month ? new Date(`${month}-01T00:00:00.000Z`) : null;
+    const end = start ? new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth() + 1)) : null;
+    return {
+      orderBy: { tipsAt: query.status === 'FINAL' ? 'desc' : 'asc' },
+      take: (query.limit as number | undefined) ?? 100,
+      where: {
+        ...when('status', query.status),
+        ...(start && end ? { tipsAt: { gte: start, lt: end } } : {}),
+      },
+    };
+  },
+  listQuery: listGamesQuerySchema,
+  model: 'game',
+  schemas: { create: createGameSchema, update: updateGameSchema },
+});
 
 // ── Media albums (галерей) ───────────────────────────────────────────────────
-contentRouter.get(
-  '/media',
-  optionalAuth,
-  validate({ query: listAlbumsQuerySchema }),
-  asyncHandler(collections.listAlbums),
-);
-contentRouter.get(
-  '/media/slug/:slug',
-  validate({ params: slugParamSchema }),
-  asyncHandler(collections.getAlbumBySlug),
-);
-contentRouter.post(
-  '/media',
-  ...adminWrite,
-  validate({ body: createAlbumSchema }),
-  asyncHandler(collections.createAlbum),
-);
-contentRouter.patch(
-  '/media/:id',
-  ...adminWrite,
-  validate({ body: updateAlbumSchema, params: idParamSchema }),
-  asyncHandler(collections.updateAlbum),
-);
-contentRouter.delete(
-  '/media/:id',
-  ...adminWrite,
-  validate({ params: idParamSchema }),
-  asyncHandler(collections.deleteAlbum),
-);
+mountCrud(contentRouter, '/media', {
+  key: 'album',
+  list: (query, hidden) => ({
+    orderBy: { sortOrder: 'asc' },
+    where: { ...(hidden ? {} : { isPublished: true }), ...when('category', query.category) },
+  }),
+  listQuery: listAlbumsQuerySchema,
+  model: 'mediaAlbum',
+  schemas: { create: createAlbumSchema, update: updateAlbumSchema },
+  slug: { notFound: 'Album not found', where: { isPublished: true } },
+  supportsHidden: true,
+});
 
-// ── History photos (/history era archive) ────────────────────────────────────
+// ── Executives (front office) ────────────────────────────────────────────────
+mountCrud(contentRouter, '/executives', {
+  key: 'executive',
+  list: (query, hidden) => ({
+    orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
+    where: { ...(hidden ? {} : { isPublic: true }), ...when('group', query.group) },
+  }),
+  listQuery: listExecutivesQuerySchema,
+  model: 'executive',
+  schemas: { create: createExecutiveSchema, update: updateExecutiveSchema },
+  supportsHidden: true,
+});
+
+// ── Videos (видео сан) ───────────────────────────────────────────────────────
+mountCrud(contentRouter, '/videos', {
+  key: 'video',
+  list: (query, hidden) => ({
+    orderBy: [{ sortOrder: 'asc' }, { publishedAt: 'desc' }],
+    take: (query.limit as number | undefined) ?? 100,
+    where: {
+      ...(hidden ? {} : { isPublished: true }),
+      ...when('category', query.category),
+      ...(query.featured ? { isFeatured: true } : {}),
+    },
+  }),
+  listQuery: listVideosQuerySchema,
+  model: 'video',
+  prepare: normalizeVideoBody,
+  schemas: { create: createVideoSchema, update: updateVideoSchema },
+  slug: { notFound: 'Video not found', where: { isPublished: true } },
+  supportsHidden: true,
+});
+
+// ── Shop products (фэн клаб) ─────────────────────────────────────────────────
+mountCrud(contentRouter, '/shop', {
+  key: 'product',
+  list: (query, hidden) => ({
+    orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
+    where: { ...(hidden ? {} : { isVisible: true }), ...when('category', query.category) },
+  }),
+  listQuery: listShopQuerySchema,
+  model: 'shopProduct',
+  schemas: { create: createShopProductSchema, update: updateShopProductSchema },
+  supportsHidden: true,
+});
+
+// ── History photos (/history era archive, Cloudinary-backed) ─────────────────
 contentRouter.get('/history-photos', asyncHandler(historyPhotos.listHistoryPhotos));
 contentRouter.post(
   '/history-photos',
-  ...adminWrite,
+  ...requireAdmin,
   validate({ body: createHistoryPhotoSchema }),
   asyncHandler(historyPhotos.createHistoryPhoto),
 );
 contentRouter.patch(
   '/history-photos/:id',
-  ...adminWrite,
+  ...requireAdmin,
   validate({ body: updateHistoryPhotoSchema, params: idParamSchema }),
   asyncHandler(historyPhotos.updateHistoryPhoto),
 );
 contentRouter.delete(
   '/history-photos/:id',
-  ...adminWrite,
+  ...requireAdmin,
   validate({ params: idParamSchema }),
   asyncHandler(historyPhotos.deleteHistoryPhoto),
-);
-
-// ── Executives (front office) ────────────────────────────────────────────────
-contentRouter.get(
-  '/executives',
-  optionalAuth,
-  validate({ query: listExecutivesQuerySchema }),
-  asyncHandler(executives.listExecutives),
-);
-contentRouter.post(
-  '/executives',
-  ...adminWrite,
-  validate({ body: createExecutiveSchema }),
-  asyncHandler(executives.createExecutive),
-);
-contentRouter.patch(
-  '/executives/:id',
-  ...adminWrite,
-  validate({ body: updateExecutiveSchema, params: idParamSchema }),
-  asyncHandler(executives.updateExecutive),
-);
-contentRouter.delete(
-  '/executives/:id',
-  ...adminWrite,
-  validate({ params: idParamSchema }),
-  asyncHandler(executives.deleteExecutive),
-);
-
-// ── Videos (видео сан) ───────────────────────────────────────────────────────
-contentRouter.get(
-  '/videos',
-  optionalAuth,
-  validate({ query: listVideosQuerySchema }),
-  asyncHandler(videos.listVideos),
-);
-contentRouter.get(
-  '/videos/slug/:slug',
-  validate({ params: slugParamSchema }),
-  asyncHandler(videos.getVideoBySlug),
-);
-contentRouter.post(
-  '/videos',
-  ...adminWrite,
-  validate({ body: createVideoSchema }),
-  asyncHandler(videos.createVideo),
-);
-contentRouter.patch(
-  '/videos/:id',
-  ...adminWrite,
-  validate({ body: updateVideoSchema, params: idParamSchema }),
-  asyncHandler(videos.updateVideo),
-);
-contentRouter.delete(
-  '/videos/:id',
-  ...adminWrite,
-  validate({ params: idParamSchema }),
-  asyncHandler(videos.deleteVideo),
-);
-
-// ── Shop products (фэн клаб) ─────────────────────────────────────────────────
-contentRouter.get(
-  '/shop',
-  optionalAuth,
-  validate({ query: listShopQuerySchema }),
-  asyncHandler(shop.listShopProducts),
-);
-contentRouter.post(
-  '/shop',
-  ...adminWrite,
-  validate({ body: createShopProductSchema }),
-  asyncHandler(shop.createShopProduct),
-);
-contentRouter.patch(
-  '/shop/:id',
-  ...adminWrite,
-  validate({ body: updateShopProductSchema, params: idParamSchema }),
-  asyncHandler(shop.updateShopProduct),
-);
-contentRouter.delete(
-  '/shop/:id',
-  ...adminWrite,
-  validate({ params: idParamSchema }),
-  asyncHandler(shop.deleteShopProduct),
 );
 
 // ── Site content (singleton copy) ────────────────────────────────────────────
@@ -341,7 +207,23 @@ contentRouter.get(
 );
 contentRouter.put(
   '/site-content/:page/:section',
-  ...adminWrite,
+  ...requireAdmin,
   validate({ body: siteContentPutSchema, params: sectionParamSchema }),
   asyncHandler(siteContent.putSiteContent),
 );
+
+/**
+ * `youtubeId` may arrive as a pasted watch/shorts/embed URL — store the bare
+ * ID, and derive the standard poster when no thumbnail came along.
+ */
+function normalizeVideoBody(body: Record<string, unknown>): Record<string, unknown> {
+  const next = { ...body };
+  if (typeof next.youtubeId === 'string' && next.youtubeId.trim()) {
+    const id = extractYouTubeId(next.youtubeId);
+    if (id) {
+      next.youtubeId = id;
+      if (!next.thumbnail) next.thumbnail = youTubeThumbUrl(id);
+    }
+  }
+  return next;
+}

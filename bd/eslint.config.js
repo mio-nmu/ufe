@@ -12,6 +12,9 @@ export default tseslint.config(
     plugins: { perfectionist },
     rules: {
       ...perfectionist.configs['recommended-natural'].rules,
+      // Top-level declarations follow the Clean Code step-down rule (callers
+      // above callees, helpers below their user), not alphabetical order.
+      'perfectionist/sort-modules': 'off',
       '@typescript-eslint/consistent-type-imports': [
         'error',
         { prefer: 'type-imports', fixStyle: 'inline-type-imports' },

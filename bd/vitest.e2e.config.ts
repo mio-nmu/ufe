@@ -1,13 +1,11 @@
 import 'dotenv/config';
 import { defineConfig } from 'vitest/config';
 
-// E2E tests run the real app against the real TEST database (see
-// docker-compose.yml, service `mongo-test`). The global setup resets and
-// migrates it before the suite; DATABASE_URL is pointed at the test instance
-// BEFORE any module (including the Prisma singleton) is imported.
-const TEST_DATABASE_URL =
-  process.env.TEST_DATABASE_URL ??
-  'mongodb://ufeedu:ufeedu@localhost:27019/ufeedu_test?authSource=admin&directConnection=true';
+import { TEST_DATABASE_URL } from './tests/setup/db.js';
+
+// E2E tests run the real app against a throwaway in-memory MongoDB started
+// by the global setup; DATABASE_URL is pointed at it BEFORE any module
+// (including the Prisma singleton) is imported.
 
 export default defineConfig({
   test: {

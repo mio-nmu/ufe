@@ -182,3 +182,34 @@ describe('user profile area stays reachable for plain users', () => {
     expect(res.body.data.user.name).toBe('Profile Peek');
   });
 });
+
+describe('PATCH /api/v1/admin/users/:id/role', () => {
+  it('grants and revokes admin access', async () => {
+    const admin = await createTestUser({ role: 'ADMIN' });
+    const target = await createTestUser();
+    const bearer = `Bearer ${(await login(admin.email, admin.password)).accessToken}`;
+
+    const grant = await request(app)
+      .patch(`${API}/admin/users/${target.id}/role`)
+      .set('Authorization', bearer)
+      .send({ role: 'ADMIN' });
+    expect(grant.status).toBe(200);
+    expect(grant.body.data.user.role).toBe('ADMIN');
+
+    const revoke = await request(app)
+      .patch(`${API}/admin/users/${target.id}/role`)
+      .set('Authorization', bearer)
+      .send({ role: 'USER' });
+    expect(revoke.body.data.user.role).toBe('USER');
+  });
+
+  it('refuses to remove your own admin access', async () => {
+    const admin = await createTestUser({ role: 'ADMIN' });
+    const bearer = `Bearer ${(await login(admin.email, admin.password)).accessToken}`;
+    const res = await request(app)
+      .patch(`${API}/admin/users/${admin.id}/role`)
+      .set('Authorization', bearer)
+      .send({ role: 'USER' });
+    expect(res.status).toBe(409);
+  });
+});

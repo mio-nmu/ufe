@@ -7,6 +7,8 @@ import {
 } from '../../config/constants.js';
 import { idParamSchema } from '../shared.js';
 
+export { idParamSchema };
+
 // ── Shared field builders ────────────────────────────────────────────────────
 // Contract: a MISSING key stays missing (Prisma column default / untouched
 // PATCH field). An EMPTY STRING normalises to null for nullable text columns.
@@ -83,6 +85,9 @@ const newsFields = {
 
 export const createNewsSchema = z.object(newsFields);
 
+// ── Update variants: everything optional (essentials included) ───────────────
+export const updateNewsSchema = createNewsSchema.partial();
+
 export const listNewsQuerySchema = z.object({
   category: z.string().trim().min(1).max(60).optional(),
   featured: boolFlag.optional(),
@@ -92,7 +97,7 @@ export const listNewsQuerySchema = z.object({
 });
 
 // ── Players ──────────────────────────────────────────────────────────────────
-export const playerRoleEnum = z.enum(['COACH', 'PLAYER', 'STAFF']);
+const playerRoleEnum = z.enum(['COACH', 'PLAYER', 'STAFF']);
 
 /** Roster-card display extras stored as the Player.profile JSON blob. */
 const playerProfileSchema = z.object({
@@ -133,19 +138,30 @@ const playerFields = {
 
 export const createPlayerSchema = z.object(playerFields);
 
+export const updatePlayerSchema = createPlayerSchema.partial();
+
 export const listPlayersQuerySchema = z.object({
   includeHidden: boolFlag.optional(), // ADMIN-only
   role: playerRoleEnum.optional(),
 });
 
 // ── Games ────────────────────────────────────────────────────────────────────
-export const gameStatusEnum = z.enum(['CANCELLED', 'FINAL', 'SCHEDULED']);
+const gameStatusEnum = z.enum(['CANCELLED', 'FINAL', 'SCHEDULED']);
 
 const gameFields = {
   competition: z.string().trim().min(1).max(160).optional(),
   isHome: optionalBool,
   note: optionalText(500),
   opponent: text(120),
+  // #RRGGBB only — it is written into a style attribute on the public site.
+  // Absent → untouched (PATCH); '' or null → cleared.
+  opponentColor: z.preprocess(
+    (value) => (value === '' ? null : value),
+    z
+      .string()
+      .regex(/^#[0-9a-fA-F]{6}$/, 'opponentColor must be a #RRGGBB hex colour')
+      .nullish(),
+  ),
   opponentLogo: optionalText(600),
   opponentScore: optionalInt(0, 300),
   opponentShort: optionalText(12),
@@ -161,6 +177,8 @@ const gameFields = {
 
 export const createGameSchema = z.object(gameFields);
 
+export const updateGameSchema = createGameSchema.partial();
+
 export const listGamesQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).optional(),
   month: z
@@ -170,32 +188,8 @@ export const listGamesQuerySchema = z.object({
   status: gameStatusEnum.optional(),
 });
 
-// ── Standings ────────────────────────────────────────────────────────────────
-const standingFields = {
-  isCurrent: optionalBool,
-  losses: optionalInt(0, 999),
-  sortOrder: optionalInt(0, 9999),
-  teamLogo: optionalText(600),
-  teamName: text(120),
-  teamShort: optionalText(12),
-  wins: optionalInt(0, 999),
-};
-
-export const createStandingSchema = z.object(standingFields);
-
-// ── Partners (sponsors) ──────────────────────────────────────────────────────
-const partnerFields = {
-  isVisible: optionalBool,
-  logo: optionalText(600),
-  name: text(120),
-  sortOrder: optionalInt(0, 9999),
-  url: optionalText(600),
-};
-
-export const createPartnerSchema = z.object(partnerFields);
-
 // ── Media albums ─────────────────────────────────────────────────────────────
-export const albumCategoryEnum = z.enum(['COMMUNITY', 'EVENTS', 'GAMES']);
+const albumCategoryEnum = z.enum(['COMMUNITY', 'EVENTS', 'GAMES']);
 
 const albumImageSchema = z.object({
   caption: optionalText(200),
@@ -214,6 +208,8 @@ const albumFields = {
 };
 
 export const createAlbumSchema = z.object(albumFields);
+
+export const updateAlbumSchema = createAlbumSchema.partial();
 
 export const listAlbumsQuerySchema = z.object({
   category: albumCategoryEnum.optional(),
@@ -242,13 +238,7 @@ export type CreateHistoryPhotoInput = z.infer<typeof createHistoryPhotoSchema>;
 export type UpdateHistoryPhotoInput = z.infer<typeof updateHistoryPhotoSchema>;
 
 // ── Executives (front office tabs + /staff team-staff cards) ─────────────────
-export const executiveGroupEnum = z.enum([
-  'BUSINESS',
-  'COACHES',
-  'OPERATIONS',
-  'OWNERSHIP',
-  'STAFF',
-]);
+const executiveGroupEnum = z.enum(['BUSINESS', 'COACHES', 'OPERATIONS', 'OWNERSHIP', 'STAFF']);
 
 /** Bio-drawer detail sections on the /staff cards. */
 const staffSectionsSchema = z
@@ -277,13 +267,15 @@ const executiveFields = {
 
 export const createExecutiveSchema = z.object(executiveFields);
 
+export const updateExecutiveSchema = createExecutiveSchema.partial();
+
 export const listExecutivesQuerySchema = z.object({
   group: executiveGroupEnum.optional(),
   includeHidden: boolFlag.optional(), // ADMIN-only
 });
 
 // ── Videos ───────────────────────────────────────────────────────────────────
-export const videoCategoryEnum = z.enum(['BEHIND_THE_SCENES', 'HIGHLIGHTS', 'INTERVIEWS', 'PRESS']);
+const videoCategoryEnum = z.enum(['BEHIND_THE_SCENES', 'HIGHLIGHTS', 'INTERVIEWS', 'PRESS']);
 
 const videoFields = {
   category: videoCategoryEnum.optional(),
@@ -302,6 +294,8 @@ const videoFields = {
 
 export const createVideoSchema = z.object(videoFields);
 
+export const updateVideoSchema = createVideoSchema.partial();
+
 export const listVideosQuerySchema = z.object({
   category: videoCategoryEnum.optional(),
   featured: boolFlag.optional(),
@@ -310,7 +304,7 @@ export const listVideosQuerySchema = z.object({
 });
 
 // ── Shop products (fan club) ─────────────────────────────────────────────────
-export const shopCategoryEnum = z.enum(['GEAR', 'HATS', 'HOODIES', 'JERSEYS', 'KIDS', 'TEES']);
+const shopCategoryEnum = z.enum(['GEAR', 'HATS', 'HOODIES', 'JERSEYS', 'KIDS', 'TEES']);
 
 const shopFields = {
   badge: optionalText(40),
@@ -328,26 +322,19 @@ const shopFields = {
 
 export const createShopProductSchema = z.object(shopFields);
 
+export const updateShopProductSchema = createShopProductSchema.partial();
+
 export const listShopQuerySchema = z.object({
   category: shopCategoryEnum.optional(),
   includeHidden: boolFlag.optional(), // ADMIN-only
 });
 
-// ── Update variants: everything optional (essentials included) ───────────────
-export const updateNewsSchema = createNewsSchema.partial();
-export const updatePlayerSchema = createPlayerSchema.partial();
-export const updateGameSchema = createGameSchema.partial();
-export const updateStandingSchema = createStandingSchema.partial();
-export const updatePartnerSchema = createPartnerSchema.partial();
-export const updateAlbumSchema = createAlbumSchema.partial();
-export const updateExecutiveSchema = createExecutiveSchema.partial();
-export const updateVideoSchema = createVideoSchema.partial();
-export const updateShopProductSchema = createShopProductSchema.partial();
-
 // ── Site content (singleton copy, allowlisted by page/section) ───────────────
 export const siteContentPutSchema = z.object({
   data: z.record(z.string(), z.unknown()),
 });
+
+export type SiteContentPutInput = z.infer<typeof siteContentPutSchema>;
 
 export const pageParamSchema = z.object({
   page: z.string().trim().min(1).max(40),
@@ -357,16 +344,3 @@ export const sectionParamSchema = z.object({
   page: z.string().trim().min(1).max(40),
   section: z.string().trim().min(1).max(40),
 });
-
-export type CreateGameInput = z.infer<typeof createGameSchema>;
-export type ListAlbumsQuery = z.infer<typeof listAlbumsQuerySchema>;
-export type ListExecutivesQuery = z.infer<typeof listExecutivesQuerySchema>;
-export type ListGamesQuery = z.infer<typeof listGamesQuerySchema>;
-export type ListNewsQuery = z.infer<typeof listNewsQuerySchema>;
-export type ListPlayersQuery = z.infer<typeof listPlayersQuerySchema>;
-export type ListShopQuery = z.infer<typeof listShopQuerySchema>;
-export type ListVideosQuery = z.infer<typeof listVideosQuerySchema>;
-export type SiteContentPutInput = z.infer<typeof siteContentPutSchema>;
-export type UpdateGameInput = z.infer<typeof updateGameSchema>;
-
-export { idParamSchema };

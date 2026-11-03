@@ -2,10 +2,8 @@ import type { Server } from 'node:http';
 
 import { buildApp } from './app.js';
 import { env } from './config/env.js';
-import { stopContentListener } from './lib/content-events.js';
 import { logger } from './lib/logger.js';
 import { prisma } from './lib/prisma.js';
-import { closeAllSseStreams } from './lib/sse.js';
 
 const app = buildApp();
 
@@ -20,18 +18,10 @@ async function shutdown(reason: string, exitCode: number): Promise<void> {
   shuttingDown = true;
   logger.info(`${reason} received — shutting down gracefully`);
 
-  // Stop accepting new connections, close SSE streams and the LISTEN
-  // connection, then close the DB pool.
+  // Stop accepting new connections (open live-game streams included), then
+  // close the DB pool.
   server.close(() => logger.info('HTTP server closed'));
   server.closeAllConnections();
-  closeAllSseStreams();
-
-  try {
-    await stopContentListener();
-    logger.info('Content listener stopped');
-  } catch (error) {
-    logger.error({ err: error }, 'Error stopping content listener');
-  }
 
   try {
     await prisma.$disconnect();
