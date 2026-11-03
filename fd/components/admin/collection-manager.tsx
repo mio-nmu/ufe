@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { LucideIcon } from "lucide-react";
 import { Image as ImageIcon, Loader2, Plus } from "lucide-react";
@@ -33,6 +33,7 @@ import { YouTubeFrame } from "@/components/team/youtube-frame";
 import { ApiClientError, api } from "@/lib/api-client";
 import { revalidatePublicTag } from "@/lib/admin/revalidate";
 import { tagForEndpoint } from "@/lib/cache-tags";
+import { slugify } from "@/lib/slug";
 import { cn } from "@/lib/utils";
 import {
   isYouTubeThumbUrl,
@@ -51,6 +52,11 @@ export type CollectionField =
       placeholder?: string;
       /** For number fields. */
       step?: number;
+      /**
+       * URL slug field: auto-filled from this field while CREATING, until the
+       * admin types here. Existing rows keep their slug (links stay valid).
+       */
+      slugFrom?: string;
     }
   | {
       name: string;
@@ -113,16 +119,23 @@ export type CollectionField =
       type: "images";
       /** One URL per line in the editor, [{ url }] over the wire. */
       placeholder?: string;
+    }
+  | {
+      name: string;
+      label: string;
+      /** #RRGGBB picker + hex text box; empty → null. */
+      type: "color";
+      hint?: string;
+    }
+  | {
+      name: string;
+      label: string;
+      /** Entered and shown in Ulaanbaatar time (UTC+8), sent as ISO. */
+      type: "datetime";
+      required?: boolean;
     };
 
 type Row = Record<string, unknown> & { id: string };
-
-/** Form-state cell → number | null ("" and garbage become null). */
-function toNumberOrNull(value: string | boolean | undefined): null | number {
-  if (value === "" || value === undefined) return null;
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : null;
-}
 
 export interface CollectionConfig {
   /** Page heading (Mongolian). */
@@ -165,235 +178,6 @@ export interface CollectionConfig {
   canDelete?: boolean;
 }
 
-// ─── Helpers ────────────────────────────────────────────────────────────────
-
-function blankForm(config: CollectionConfig): Record<string, string | boolean> {
-  const form: Record<string, string | boolean> = {};
-  for (const field of config.fields) {
-    form[field.name] =
-      field.type === "checkbox"
-        ? ("defaultChecked" in field && field.defaultChecked) === true
-        : field.type === "range" && field.defaultValue !== undefined
-          ? String(field.defaultValue)
-          : "";
-  }
-  return form;
-}
-
-function rowToForm(
-  config: CollectionConfig,
-  row: Row,
-): Record<string, string | boolean> {
-  const form: Record<string, string | boolean> = {};
-  for (const field of config.fields) {
-    const value = row[field.name];
-    if (field.type === "checkbox") form[field.name] = Boolean(value);
-    else if (field.type === "list")
-      form[field.name] = Array.isArray(value) ? value.join(", ") : "";
-    else if (field.type === "images")
-      form[field.name] = Array.isArray(value)
-        ? value
-            .map((item) =>
-              typeof item === "string"
-                ? item
-                : String((item as { url?: string })?.url ?? ""),
-            )
-            .join("\n")
-        : "";
-    else if (value === null || value === undefined) form[field.name] = "";
-    else form[field.name] = String(value);
-  }
-  return form;
-}
-
-function formToPayload(
-  config: CollectionConfig,
-  form: Record<string, string | boolean>,
-): Record<string, unknown> {
-  const payload: Record<string, unknown> = {};
-  for (const field of config.fields) {
-    const value = form[field.name];
-    if (field.type === "checkbox") {
-      payload[field.name] = Boolean(value);
-    } else if (field.type === "number") {
-      const text = String(value).trim();
-      payload[field.name] = text === "" ? null : Number(text);
-    } else if (field.type === "range") {
-      const text = String(value).trim();
-      payload[field.name] = text === "" ? null : Number(text);
-    } else if (field.type === "list") {
-      const text = String(value);
-      payload[field.name] = text
-        .split(",")
-        .map((part) => part.trim())
-        .filter(Boolean);
-    } else if (field.type === "images") {
-      const text = String(value);
-      payload[field.name] = text
-        .split(/\n/)
-        .map((line) => line.trim())
-        .filter(Boolean)
-        .map((url) => ({ url }));
-    } else {
-      const text = String(value);
-      const required = "required" in field && field.required;
-      payload[field.name] = required || text !== "" ? text : null;
-    }
-  }
-  return payload;
-}
-
-function missingRequired(
-  config: CollectionConfig,
-  form: Record<string, string | boolean>,
-): string | null {
-  for (const field of config.fields) {
-    if (
-      field.type !== "checkbox" &&
-      "required" in field &&
-      field.required &&
-      !String(form[field.name]).trim()
-    ) {
-      return field.label;
-    }
-  }
-  return null;
-}
-
-// ─── YouTube link field (paste URL or ID → live brand-free preview) ─────────
-
-function YouTubeField({
-  id,
-  value,
-  onChange,
-  onIdResolved,
-  placeholder,
-}: {
-  id: string;
-  value: string;
-  onChange: (next: string) => void;
-  /** Fires whenever the input resolves to a concrete video ID. */
-  onIdResolved?: (id: string) => void;
-  placeholder?: string;
-}) {
-  const resolvedId = parseYouTubeId(value);
-
-  // A pasted URL collapses to its 11-char ID as soon as it parses.
-  const handleChange = (raw: string) => {
-    const parsed = parseYouTubeId(raw);
-    onChange(parsed ?? raw);
-    if (parsed) onIdResolved?.(parsed);
-  };
-
-  return (
-    <div className="grid gap-2">
-      <div className="flex items-center gap-2">
-        <Input
-          id={id}
-          value={value}
-          onChange={(event) => handleChange(event.target.value)}
-          placeholder={placeholder ?? "https://youtube.com/watch?v=… эсвэл ID"}
-        />
-        {resolvedId ? (
-          <span className="text-muted-foreground shrink-0 font-mono text-[11px]">
-            ✓ {resolvedId}
-          </span>
-        ) : null}
-      </div>
-      {resolvedId ? (
-        <div className="border-line aspect-video w-full overflow-hidden rounded-md border">
-          <YouTubeFrame videoId={resolvedId} title="Урьдчилан харах" />
-        </div>
-      ) : value.trim() ? (
-        <p className="text-destructive text-xs">
-          YouTube линк эсвэл 11 тэмдэгт ID оруулна уу.
-        </p>
-      ) : null}
-    </div>
-  );
-}
-
-// ─── Range field (slider with live framing preview) ─────────────────────────
-
-/**
- * Slider for 0–100 style settings, with an optional live preview showing the
- * referenced image exactly as the public card will frame it (an optional
- * companion position field's live value is applied alongside the slider's
- * own). An empty value (stored null) displays at `emptyDisplayValue` — the
- * visual default — but still saves as null until the slider is moved.
- */
-function RangeField({
-  id,
-  value,
-  min,
-  max,
-  step,
-  hint,
-  emptyDisplayValue,
-  previewUrl,
-  previewMode = "position",
-  previewPosition,
-  onChange,
-}: {
-  id: string;
-  value: string;
-  min: number;
-  max: number;
-  step: number;
-  hint?: string;
-  emptyDisplayValue: number;
-  previewUrl: null | string;
-  /** What the slider drives in the preview: vertical placement or size. */
-  previewMode?: "position" | "scale";
-  /** Live value of the photo-position field, for the scale slider's preview. */
-  previewPosition: null | number;
-  onChange: (next: string) => void;
-}) {
-  const shown = value === "" ? emptyDisplayValue : Number(value);
-  const position = previewPosition ?? 100;
-  const previewStyle =
-    previewMode === "scale"
-      ? {
-          objectPosition: `center ${position}%`,
-          transform: `scale(${shown / 100})`,
-          transformOrigin: `center ${position}%`,
-        }
-      : { objectPosition: `center ${shown}%` };
-  return (
-    <div className="grid gap-2">
-      <div className="flex items-center gap-3">
-        <input
-          id={id}
-          type="range"
-          min={min}
-          max={max}
-          step={step}
-          value={shown}
-          onChange={(event) => onChange(event.target.value)}
-          className="border-input bg-background h-2 w-full cursor-pointer appearance-none rounded-full"
-        />
-        <span className="text-muted-foreground w-12 shrink-0 text-right font-mono text-xs">
-          {shown}%
-        </span>
-      </div>
-      {hint ? (
-        <p className="text-muted-foreground text-[11px] leading-snug">{hint}</p>
-      ) : null}
-      {previewUrl ? (
-        <div className="border-line bg-muted/30 relative aspect-[4/5] w-24 overflow-hidden rounded-md border">
-          {/* eslint-disable-next-line @next/next/no-img-element -- CMS field: arbitrary-origin URLs */}
-          <img
-            src={previewUrl}
-            alt=""
-            className="h-full w-full object-contain"
-            style={previewStyle}
-          />
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
 // ─── Manager ────────────────────────────────────────────────────────────────
 
 /**
@@ -433,13 +217,18 @@ export function CollectionManager({ config }: { config: CollectionConfig }) {
 
   const canCreate = config.canCreate !== false;
 
+  // True once the admin edits a slug by hand — auto-fill then stops.
+  const slugTouched = useRef(false);
+
   const openCreate = () => {
+    slugTouched.current = false;
     setEditing(null);
     setForm(blankForm(config));
     setCreating(true);
   };
 
   const openEdit = (row: Row) => {
+    slugTouched.current = true;
     setEditing(row);
     setForm(rowToForm(config, row));
     setCreating(true);
@@ -676,6 +465,49 @@ export function CollectionManager({ config }: { config: CollectionConfig }) {
                             setForm((prev) => ({ ...prev, [field.name]: next }))
                           }
                         />
+                      ) : field.type === "color" ? (
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="color"
+                            aria-label={`${field.label} — сонгох`}
+                            className="border-input size-9 shrink-0 cursor-pointer rounded-md border bg-transparent p-0.5"
+                            value={
+                              /^#[0-9a-fA-F]{6}$/.test(String(form[field.name]))
+                                ? String(form[field.name])
+                                : "#0b1526"
+                            }
+                            onChange={(event) =>
+                              setForm((prev) => ({
+                                ...prev,
+                                [field.name]: event.target.value,
+                              }))
+                            }
+                          />
+                          <Input
+                            id={`field-${field.name}`}
+                            value={String(form[field.name] ?? "")}
+                            placeholder="#A01C2B"
+                            maxLength={7}
+                            onChange={(event) =>
+                              setForm((prev) => ({
+                                ...prev,
+                                [field.name]: event.target.value.trim(),
+                              }))
+                            }
+                          />
+                        </div>
+                      ) : field.type === "datetime" ? (
+                        <Input
+                          id={`field-${field.name}`}
+                          type="datetime-local"
+                          value={String(form[field.name] ?? "")}
+                          onChange={(event) =>
+                            setForm((prev) => ({
+                              ...prev,
+                              [field.name]: event.target.value,
+                            }))
+                          }
+                        />
                       ) : field.type === "select" ? (
                         <select
                           id={`field-${field.name}`}
@@ -793,12 +625,26 @@ export function CollectionManager({ config }: { config: CollectionConfig }) {
                               ? field.placeholder
                               : undefined
                           }
-                          onChange={(event) =>
-                            setForm((prev) => ({
-                              ...prev,
-                              [field.name]: event.target.value,
-                            }))
-                          }
+                          onChange={(event) => {
+                            const value = event.target.value;
+                            if ("slugFrom" in field && field.slugFrom) {
+                              slugTouched.current = true;
+                            }
+                            setForm((prev) => {
+                              const next = { ...prev, [field.name]: value };
+                              if (!slugTouched.current) {
+                                for (const target of config.fields) {
+                                  if (
+                                    "slugFrom" in target &&
+                                    target.slugFrom === field.name
+                                  ) {
+                                    next[target.name] = slugify(value);
+                                  }
+                                }
+                              }
+                              return next;
+                            });
+                          }}
                         />
                       )}
                     </>
@@ -828,21 +674,262 @@ export function CollectionManager({ config }: { config: CollectionConfig }) {
 /** Media-zone pill used by card configs. */
 export function MediaPill({ children }: { children: React.ReactNode }) {
   return (
-    <span className="bg-background/90 text-card-foreground rounded-full px-2 py-0.5 text-[11px] font-semibold shadow-sm backdrop-blur">
+    <span className="bg-background/90 text-card-foreground rounded-full px-2 py-0.5 text-[12px] font-semibold shadow-sm backdrop-blur">
       {children}
     </span>
   );
 }
 
-export function YesNo({ value }: { value: unknown }) {
+// ─── Helpers ────────────────────────────────────────────────────────────────
+
+function blankForm(config: CollectionConfig): Record<string, string | boolean> {
+  const form: Record<string, string | boolean> = {};
+  for (const field of config.fields) {
+    form[field.name] =
+      field.type === "checkbox"
+        ? ("defaultChecked" in field && field.defaultChecked) === true
+        : field.type === "range" && field.defaultValue !== undefined
+          ? String(field.defaultValue)
+          : "";
+  }
+  return form;
+}
+
+function rowToForm(
+  config: CollectionConfig,
+  row: Row,
+): Record<string, string | boolean> {
+  const form: Record<string, string | boolean> = {};
+  for (const field of config.fields) {
+    const value = row[field.name];
+    if (field.type === "checkbox") form[field.name] = Boolean(value);
+    else if (field.type === "list")
+      form[field.name] = Array.isArray(value) ? value.join(", ") : "";
+    else if (field.type === "images")
+      form[field.name] = Array.isArray(value)
+        ? value
+            .map((item) =>
+              typeof item === "string"
+                ? item
+                : String((item as { url?: string })?.url ?? ""),
+            )
+            .join("\n")
+        : "";
+    else if (value === null || value === undefined) form[field.name] = "";
+    else if (field.type === "datetime")
+      form[field.name] = toUbLocalInput(String(value));
+    else form[field.name] = String(value);
+  }
+  return form;
+}
+
+/** ISO instant → "YYYY-MM-DDTHH:mm" wall time in Ulaanbaatar. */
+function toUbLocalInput(iso: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return "";
+  return new Date(date.getTime() + 8 * 60 * 60 * 1000)
+    .toISOString()
+    .slice(0, 16);
+}
+
+function missingRequired(
+  config: CollectionConfig,
+  form: Record<string, string | boolean>,
+): string | null {
+  for (const field of config.fields) {
+    if (
+      field.type !== "checkbox" &&
+      "required" in field &&
+      field.required &&
+      !String(form[field.name]).trim()
+    ) {
+      return field.label;
+    }
+  }
+  return null;
+}
+
+function formToPayload(
+  config: CollectionConfig,
+  form: Record<string, string | boolean>,
+): Record<string, unknown> {
+  const payload: Record<string, unknown> = {};
+  for (const field of config.fields) {
+    const value = form[field.name];
+    if (field.type === "checkbox") {
+      payload[field.name] = Boolean(value);
+    } else if (field.type === "number") {
+      const text = String(value).trim();
+      payload[field.name] = text === "" ? null : Number(text);
+    } else if (field.type === "range") {
+      const text = String(value).trim();
+      payload[field.name] = text === "" ? null : Number(text);
+    } else if (field.type === "list") {
+      const text = String(value);
+      payload[field.name] = text
+        .split(",")
+        .map((part) => part.trim())
+        .filter(Boolean);
+    } else if (field.type === "datetime") {
+      const text = String(value).trim();
+      // Empty → omitted (undefined is dropped from the JSON), so the stored
+      // date is kept; null would coerce to 1970 on the API.
+      payload[field.name] = text
+        ? new Date(`${text}:00+08:00`).toISOString()
+        : undefined;
+    } else if (field.type === "images") {
+      const text = String(value);
+      payload[field.name] = text
+        .split(/\n/)
+        .map((line) => line.trim())
+        .filter(Boolean)
+        .map((url) => ({ url }));
+    } else {
+      const text = String(value);
+      const required = "required" in field && field.required;
+      payload[field.name] = required || text !== "" ? text : null;
+    }
+  }
+  return payload;
+}
+
+// ─── Range field (slider with live framing preview) ─────────────────────────
+
+/**
+ * Slider for 0–100 style settings, with an optional live preview showing the
+ * referenced image exactly as the public card will frame it (an optional
+ * companion position field's live value is applied alongside the slider's
+ * own). An empty value (stored null) displays at `emptyDisplayValue` — the
+ * visual default — but still saves as null until the slider is moved.
+ */
+function RangeField({
+  id,
+  value,
+  min,
+  max,
+  step,
+  hint,
+  emptyDisplayValue,
+  previewUrl,
+  previewMode = "position",
+  previewPosition,
+  onChange,
+}: {
+  id: string;
+  value: string;
+  min: number;
+  max: number;
+  step: number;
+  hint?: string;
+  emptyDisplayValue: number;
+  previewUrl: null | string;
+  /** What the slider drives in the preview: vertical placement or size. */
+  previewMode?: "position" | "scale";
+  /** Live value of the photo-position field, for the scale slider's preview. */
+  previewPosition: null | number;
+  onChange: (next: string) => void;
+}) {
+  const shown = value === "" ? emptyDisplayValue : Number(value);
+  const position = previewPosition ?? 100;
+  const previewStyle =
+    previewMode === "scale"
+      ? {
+          objectPosition: `center ${position}%`,
+          transform: `scale(${shown / 100})`,
+          transformOrigin: `center ${position}%`,
+        }
+      : { objectPosition: `center ${shown}%` };
   return (
-    <span
-      className={cn(
-        "text-xs font-semibold",
-        value ? "text-primary" : "text-muted-foreground",
-      )}
-    >
-      {value ? "Тийм" : "Үгүй"}
-    </span>
+    <div className="grid gap-2">
+      <div className="flex items-center gap-3">
+        <input
+          id={id}
+          type="range"
+          min={min}
+          max={max}
+          step={step}
+          value={shown}
+          onChange={(event) => onChange(event.target.value)}
+          className="border-input bg-background h-2 w-full cursor-pointer appearance-none rounded-full"
+        />
+        <span className="text-muted-foreground w-12 shrink-0 text-right font-mono text-xs">
+          {shown}%
+        </span>
+      </div>
+      {hint ? (
+        <p className="text-muted-foreground text-[12px] leading-snug">{hint}</p>
+      ) : null}
+      {previewUrl ? (
+        <div className="border-line bg-muted/30 relative aspect-[4/5] w-24 overflow-hidden rounded-md border">
+          {/* eslint-disable-next-line @next/next/no-img-element -- CMS field: arbitrary-origin URLs */}
+          <img
+            src={previewUrl}
+            alt=""
+            className="h-full w-full object-contain"
+            style={previewStyle}
+          />
+        </div>
+      ) : null}
+    </div>
   );
+}
+
+// ─── YouTube link field (paste URL or ID → live brand-free preview) ─────────
+
+function YouTubeField({
+  id,
+  value,
+  onChange,
+  onIdResolved,
+  placeholder,
+}: {
+  id: string;
+  value: string;
+  onChange: (next: string) => void;
+  /** Fires whenever the input resolves to a concrete video ID. */
+  onIdResolved?: (id: string) => void;
+  placeholder?: string;
+}) {
+  const resolvedId = parseYouTubeId(value);
+
+  // A pasted URL collapses to its 11-char ID as soon as it parses.
+  const handleChange = (raw: string) => {
+    const parsed = parseYouTubeId(raw);
+    onChange(parsed ?? raw);
+    if (parsed) onIdResolved?.(parsed);
+  };
+
+  return (
+    <div className="grid gap-2">
+      <div className="flex items-center gap-2">
+        <Input
+          id={id}
+          value={value}
+          onChange={(event) => handleChange(event.target.value)}
+          placeholder={placeholder ?? "https://youtube.com/watch?v=… эсвэл ID"}
+        />
+        {resolvedId ? (
+          <span className="text-muted-foreground shrink-0 font-mono text-[12px]">
+            ✓ {resolvedId}
+          </span>
+        ) : null}
+      </div>
+      {resolvedId ? (
+        <div className="border-line aspect-video w-full overflow-hidden rounded-md border">
+          <YouTubeFrame videoId={resolvedId} title="Урьдчилан харах" />
+        </div>
+      ) : value.trim() ? (
+        <p className="text-destructive text-xs">
+          YouTube линк эсвэл 11 тэмдэгт ID оруулна уу.
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+/** Form-state cell → number | null ("" and garbage become null). */
+function toNumberOrNull(value: string | boolean | undefined): null | number {
+  if (value === "" || value === undefined) return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
 }

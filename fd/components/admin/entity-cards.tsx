@@ -3,7 +3,7 @@
 import type { LucideIcon } from "lucide-react";
 import { Image as ImageIcon, Pencil, Plus, Trash2 } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -14,19 +14,12 @@ import {
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 
-// Card accents sit on the stock shadcn surfaces — monochrome ink/gray
-// like the rest of the admin palette.
-
-export type CardAspect = "1/1" | "16/10" | "4/3" | "4/5";
-
 const ASPECT_CLASS: Record<CardAspect, string> = {
   "1/1": "aspect-square",
   "16/10": "aspect-[16/10]",
   "4/3": "aspect-[4/3]",
   "4/5": "aspect-[4/5]",
 };
-
-export type StatusTone = "amber" | "green" | "info" | "navy" | "neutral";
 
 const TONE_PILL: Record<StatusTone, string> = {
   amber: "bg-amber-100 text-amber-800",
@@ -36,64 +29,12 @@ const TONE_PILL: Record<StatusTone, string> = {
   neutral: "bg-muted text-muted-foreground",
 };
 
-export function StatusPill({
-  tone,
-  label,
-}: {
-  tone: StatusTone;
-  label: string;
-}) {
-  return (
-    <span
-      className={cn(
-        "rounded-full px-2 py-0.5 text-[11px] font-semibold",
-        TONE_PILL[tone],
-      )}
-    >
-      {label}
-    </span>
-  );
-}
+// Card accents sit on the stock shadcn surfaces — monochrome ink/gray
+// like the rest of the admin palette.
 
-/** Overlay action buttons — hover/focus-within, and always on touch. */
-function OverlayActions({
-  onEdit,
-  onDelete,
-  editLabel = "Засах",
-  deleteLabel = "Устгах",
-}: {
-  onEdit: () => void;
-  onDelete: () => void;
-  editLabel?: string;
-  deleteLabel?: string;
-}) {
-  return (
-    <div className="absolute top-2 right-2 z-10 flex gap-1.5 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100 max-[1024px]:opacity-100">
-      <button
-        type="button"
-        aria-label={editLabel}
-        onClick={(event) => {
-          event.stopPropagation();
-          onEdit();
-        }}
-        className="bg-background/90 border-border hover:border-ink flex size-7 items-center justify-center rounded-full border shadow-sm backdrop-blur transition-colors"
-      >
-        <Pencil className="size-3.5" aria-hidden="true" />
-      </button>
-      <button
-        type="button"
-        aria-label={deleteLabel}
-        onClick={(event) => {
-          event.stopPropagation();
-          onDelete();
-        }}
-        className="bg-background/90 border-border text-destructive hover:border-destructive flex size-7 items-center justify-center rounded-full border shadow-sm backdrop-blur transition-colors"
-      >
-        <Trash2 className="size-3.5" aria-hidden="true" />
-      </button>
-    </div>
-  );
-}
+export type CardAspect = "1/1" | "16/10" | "4/3" | "4/5";
+
+export type StatusTone = "amber" | "green" | "info" | "navy" | "neutral";
 
 export interface EntityCardProps {
   aspect: CardAspect;
@@ -195,6 +136,67 @@ export function EntityCard({
         {children}
       </div>
     </article>
+  );
+}
+
+function StatusPill({ tone, label }: { tone: StatusTone; label: string }) {
+  return (
+    <span
+      className={cn(
+        "rounded-full px-2 py-0.5 text-[12px] font-semibold",
+        TONE_PILL[tone],
+      )}
+    >
+      {label}
+    </span>
+  );
+}
+
+/** Overlay action buttons — hover/focus-within, and always on touch. */
+function OverlayActions({
+  onEdit,
+  onDelete,
+  editLabel = "Засах",
+  deleteLabel = "Устгах",
+}: {
+  onEdit: () => void;
+  onDelete: () => void;
+  editLabel?: string;
+  deleteLabel?: string;
+}) {
+  return (
+    <div className="absolute top-2 right-2 z-10 flex gap-1.5 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100 max-[1024px]:opacity-100">
+      <button
+        type="button"
+        aria-label={editLabel}
+        onClick={(event) => {
+          event.stopPropagation();
+          onEdit();
+        }}
+        className={buttonVariants({
+          className: "bg-background/90 shadow-card backdrop-blur",
+          size: "icon-sm",
+          variant: "outline",
+        })}
+      >
+        <Pencil className="size-3.5" aria-hidden="true" />
+      </button>
+      <button
+        type="button"
+        aria-label={deleteLabel}
+        onClick={(event) => {
+          event.stopPropagation();
+          onDelete();
+        }}
+        className={buttonVariants({
+          className: "bg-background/90 shadow-card backdrop-blur",
+          size: "icon-sm",
+          variant: "destructive",
+        })}
+      >
+        <Trash2 className="size-3.5" aria-hidden="true" />
+      </button>
+    </div>
   );
 }
 

@@ -28,7 +28,7 @@ const frontendBase = process.env.FRONTEND_BASE_URL ?? "http://localhost:3000";
 
 /**
  * E2E runs against real servers. Playwright starts (or reuses):
- *   - the backend (bd/, needs docker compose up + `npm run db:seed`)
+ *   - the backend (bd/, needs bd/.env pointing at MongoDB + `npm run db:seed`)
  *   - the frontend dev server (fd/, :3000 by default)
  */
 export default defineConfig({

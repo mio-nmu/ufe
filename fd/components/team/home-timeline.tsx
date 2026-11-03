@@ -1,136 +1,73 @@
 import Link from "next/link";
 import { ArrowUpRight } from "lucide-react";
 
+import { teamButtonClass } from "@/components/team/button";
 import { Reveal } from "@/components/team/reveal";
 import { routes } from "@/config/routes";
 
-type Medal = "gold" | "silver" | "bronze";
-
-const medalStyles: Record<
-  Medal,
-  { card: string; year: string; period: string; marker: string; center: string }
-> = {
-  gold: {
-    card: "border-amber-300/70 bg-amber-200/[0.07] shadow-[0_0_24px_rgba(234,179,8,0.18)] hover:border-amber-200 hover:shadow-[0_0_30px_rgba(234,179,8,0.28)]",
-    year: "text-amber-200/20",
-    period: "text-amber-200",
-    marker:
-      "border-amber-200 bg-amber-300 shadow-[0_0_16px_rgba(234,179,8,0.55)] group-hover:shadow-[0_0_22px_rgba(234,179,8,0.7)]",
-    center: "bg-amber-100",
-  },
-  silver: {
-    card: "border-slate-300/70 bg-slate-200/[0.06] shadow-[0_0_24px_rgba(203,213,225,0.16)] hover:border-slate-200 hover:shadow-[0_0_30px_rgba(203,213,225,0.25)]",
-    year: "text-slate-200/20",
-    period: "text-slate-200",
-    marker:
-      "border-slate-200 bg-slate-300 shadow-[0_0_16px_rgba(203,213,225,0.45)] group-hover:shadow-[0_0_22px_rgba(203,213,225,0.65)]",
-    center: "bg-white",
-  },
-  bronze: {
-    card: "border-orange-400/70 bg-orange-300/[0.06] shadow-[0_0_24px_rgba(194,108,52,0.18)] hover:border-orange-300 hover:shadow-[0_0_30px_rgba(194,108,52,0.3)]",
-    year: "text-orange-200/20",
-    period: "text-orange-200",
-    marker:
-      "border-orange-300 bg-orange-500 shadow-[0_0_16px_rgba(194,108,52,0.55)] group-hover:shadow-[0_0_22px_rgba(194,108,52,0.75)]",
-    center: "bg-orange-200",
-  },
+/** Medal colour lives only on the timeline marker — cards stay neutral. */
+const MEDAL_DOT: Record<Medal, string> = {
+  gold: "bg-amber-400",
+  silver: "bg-slate-300",
+  bronze: "bg-orange-400",
 };
 
-const milestones = [
-  {
-    period: "1992",
-    description: "Их, дээд сургуулийн аварга.",
-    medal: "gold",
-  },
-  {
-    period: "1997–2006",
-    description: "Оюутны лигийн 3 мөнгөн медаль.",
-    medal: "silver",
-  },
-  { period: "2017–2018", description: "Хотын аваргын мөнгө · Elite 8." },
-  { period: "2021–2022", description: "Final 4 · Баруун бүсийн тэргүүн." },
-  {
-    period: "2024–2025",
-    description: "Оюутны лигийн хүрэл медаль.",
-    medal: "bronze",
-  },
-  {
-    period: "2025–2026",
-    description: "Оюутны лигийн анхны аварга.",
-    medal: "gold",
-  },
-] as const;
+const MEDAL_ALIASES: Record<string, Medal> = {
+  gold: "gold",
+  алт: "gold",
+  silver: "silver",
+  мөнгө: "silver",
+  bronze: "bronze",
+  хүрэл: "bronze",
+};
 
-function MilestoneCard({
-  period,
-  description,
-  medal,
-  className,
-}: {
+type Medal = "gold" | "silver" | "bronze";
+
+interface Milestone {
   period: string;
   description: string;
-  medal?: Medal;
-  className?: string;
-}) {
-  const medalStyle = medal ? medalStyles[medal] : null;
-
-  return (
-    <Link
-      href={routes.site.history}
-      aria-label={`${period}: ${description}`}
-      className={`group/card relative block border p-3 text-left transition-[transform,background-color,border-color,box-shadow] duration-[220ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] hover:z-10 hover:-translate-y-1 hover:scale-[1.02] hover:bg-white/[0.12] hover:shadow-[0_10px_24px_rgba(0,0,0,0.22)] focus-visible:z-10 focus-visible:-translate-y-1 focus-visible:scale-[1.02] focus-visible:bg-white/[0.12] focus-visible:shadow-[0_10px_24px_rgba(0,0,0,0.22)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white motion-reduce:transform-none motion-reduce:transition-none ${
-        medalStyle
-          ? medalStyle.card
-          : "border-white/20 bg-white/[0.04] hover:border-white/45"
-      } ${className ?? ""}`}
-    >
-      <span
-        aria-hidden="true"
-        className={`font-display pointer-events-none absolute top-2 right-3 text-3xl leading-none font-bold ${medalStyle?.year ?? "text-white/10"}`}
-      >
-        {period.slice(0, 4)}
-      </span>
-      <span
-        className={`font-display block text-[12px] font-bold tracking-[0.1em] uppercase ${medalStyle?.period ?? "text-white"}`}
-      >
-        {period}
-      </span>
-      <span className="mt-2 block text-[12px] leading-[1.5] text-white/70">
-        {description}
-      </span>
-      <span className="mt-3 flex items-center gap-1 text-[9px] font-semibold tracking-[0.12em] text-white/45 uppercase transition-colors group-hover/card:text-white group-focus-visible/card:text-white">
-        Түүхийг үзэх
-        <ArrowUpRight className="size-3.5" aria-hidden="true" />
-      </span>
-    </Link>
-  );
+  medal: Medal | null;
 }
 
-export function HomeTimeline() {
+/** Admin-editable copy (site content «home / timeline»), merged over the
+ *  static default in content/site.ts. */
+export interface HomeTimelineCopy {
+  eyebrow: string;
+  title: string;
+  cta: string;
+  items: unknown;
+}
+
+export function HomeTimeline({ copy }: { copy: HomeTimelineCopy }) {
+  const milestones = toMilestones(copy.items);
+  if (milestones.length === 0) return null;
+
   return (
     <section
       aria-labelledby="home-history-title"
-      className="overflow-hidden bg-[#05070b] text-white"
+      className="border-line bg-paper-soft overflow-hidden border-y"
     >
-      <div className="team-shell team-shell-wide py-8 md:py-10">
+      <div className="team-shell py-12 md:py-16">
         <Reveal>
-          <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
+          <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
             <div className="max-w-2xl">
-              <p className="text-[11px] font-semibold tracking-[0.2em] text-white/55 uppercase">
-                1992 — ӨНӨӨДРИЙГ ХҮРТЭЛ
-              </p>
+              <p className="eyebrow">{copy.eyebrow}</p>
               <h2
                 id="home-history-title"
-                className="font-display mt-2 text-[clamp(26px,3vw,34px)] leading-[1.05] font-bold tracking-[0.02em] uppercase"
+                className="font-display text-ink mt-2 text-[clamp(26px,3vw,34px)] leading-[1.05] font-bold tracking-[0.02em] uppercase"
               >
-                Түүхэн мөчүүд
+                {copy.title}
               </h2>
             </div>
             <Link
               href={routes.site.history}
-              className="group hover:text-ink inline-flex min-h-10 items-center gap-2 border border-white/30 px-4 text-[11px] font-semibold tracking-[0.1em] uppercase transition-colors hover:border-white hover:bg-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+              className={teamButtonClass({
+                variant: "secondary",
+                size: "sm",
+                className: "group",
+              })}
             >
-              Цаг хугацааны тууз
+              {copy.cta}
               <ArrowUpRight
                 className="size-4 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
                 aria-hidden="true"
@@ -139,86 +76,141 @@ export function HomeTimeline() {
           </div>
         </Reveal>
 
-        <ol className="relative hidden min-h-[320px] grid-cols-6 lg:grid">
-          <svg
+        {/* Desktop: zig-zag cards around a horizontal rule. */}
+        <ol
+          className="relative hidden min-h-[320px] lg:grid"
+          style={{
+            gridTemplateColumns: `repeat(${milestones.length}, minmax(0, 1fr))`,
+          }}
+        >
+          <span
             aria-hidden="true"
-            viewBox="0 0 600 48"
-            preserveAspectRatio="none"
-            className="pointer-events-none absolute top-1/2 right-0 left-0 h-12 w-full -translate-y-1/2 overflow-visible"
-          >
-            <path
-              d="M0 24 L50 17 L150 31 L250 17 L350 31 L450 17 L550 31 L600 24"
-              fill="none"
-              stroke="rgb(255 255 255 / 0.32)"
-              strokeWidth="1"
-              vectorEffect="non-scaling-stroke"
-            />
-          </svg>
-          {milestones.map((entry, index) => {
+            className="bg-line pointer-events-none absolute top-1/2 right-0 left-0 h-px"
+          />
+          {milestones.map((milestone, index) => {
             const above = index % 2 === 0;
             return (
               <Reveal
-                key={entry.period}
+                key={`${milestone.period}-${index}`}
                 as="li"
                 delay={index * 60}
-                className="group relative grid grid-rows-[1fr_40px_1fr]"
+                className="group relative grid grid-rows-[1fr_40px_1fr] px-1.5"
               >
                 <MilestoneCard
-                  period={entry.period}
-                  description={entry.description}
-                  medal={"medal" in entry ? entry.medal : undefined}
+                  milestone={milestone}
                   className={`w-full ${above ? "row-start-1 mb-4 self-end" : "row-start-3 mt-4 self-start"}`}
                 />
                 <span
                   aria-hidden="true"
-                  className="relative z-[1] row-start-2 flex items-center justify-center before:absolute before:top-0 before:bottom-0 before:left-1/2 before:w-px before:-translate-x-1/2 before:bg-white/35"
+                  className={`before:bg-line relative z-[1] row-start-2 flex justify-center before:absolute before:left-1/2 before:w-px before:-translate-x-1/2 ${
+                    above
+                      ? "items-center before:top-0 before:h-1/2"
+                      : "items-center before:bottom-0 before:h-1/2"
+                  }`}
                 >
-                  <span
-                    className={`relative z-[1] size-4 rounded-full border-2 transition-[transform,box-shadow] duration-200 ease-out group-hover:scale-110 ${
-                      "medal" in entry
-                        ? medalStyles[entry.medal].marker
-                        : "border-white/70 bg-[#05070b] group-hover:shadow-[0_0_0_4px_rgba(255,255,255,0.1)]"
-                    } ${above ? "translate-y-[-7px]" : "translate-y-[7px]"}`}
-                  >
-                    <span
-                      className={`absolute inset-0.5 rounded-full ${
-                        "medal" in entry
-                          ? medalStyles[entry.medal].center
-                          : "bg-white"
-                      }`}
-                    />
-                  </span>
+                  <Marker medal={milestone.medal} className="relative z-[1]" />
                 </span>
               </Reveal>
             );
           })}
         </ol>
 
-        <ol className="relative space-y-4 border-l border-white/25 pl-7 lg:hidden">
-          {milestones.map((entry, index) => (
+        {/* Mobile / tablet: vertical rail. */}
+        <ol className="border-line relative space-y-4 border-l pl-7 lg:hidden">
+          {milestones.map((milestone, index) => (
             <Reveal
-              key={entry.period}
+              key={`${milestone.period}-${index}`}
               as="li"
               delay={index * 50}
               className="group relative"
             >
-              <span
-                aria-hidden="true"
-                className={`absolute top-5 -left-[35px] z-[1] size-4 rounded-full border-2 transition-transform duration-200 group-hover:scale-110 ${
-                  "medal" in entry
-                    ? medalStyles[entry.medal].marker
-                    : "border-white/70 bg-[#202020]"
-                }`}
+              <Marker
+                medal={milestone.medal}
+                className="absolute top-4 -left-[37px] z-[1]"
               />
-              <MilestoneCard
-                period={entry.period}
-                description={entry.description}
-                medal={"medal" in entry ? entry.medal : undefined}
-              />
+              <MilestoneCard milestone={milestone} />
             </Reveal>
           ))}
         </ol>
       </div>
     </section>
+  );
+}
+
+/** Admin input → at most 6 well-formed milestones (bad rows are skipped). */
+function toMilestones(raw: unknown): Milestone[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter(
+      (item): item is Record<string, unknown> =>
+        typeof item === "object" &&
+        item !== null &&
+        typeof (item as { period?: unknown }).period === "string" &&
+        (item as { period: string }).period.trim() !== "",
+    )
+    .slice(0, 6)
+    .map((item) => ({
+      period: String(item.period).trim(),
+      description:
+        typeof item.description === "string" ? item.description.trim() : "",
+      medal:
+        MEDAL_ALIASES[
+          String(item.medal ?? "")
+            .trim()
+            .toLowerCase()
+        ] ?? null,
+    }));
+}
+
+function MilestoneCard({
+  milestone,
+  className,
+}: {
+  milestone: Milestone;
+  className?: string;
+}) {
+  const { period, description } = milestone;
+  return (
+    <Link
+      href={routes.site.history}
+      aria-label={`${period}: ${description}`}
+      className={`group/card border-line bg-paper card-lift team-focus relative block rounded-lg border p-3 text-left ${className ?? ""}`}
+    >
+      <span
+        aria-hidden="true"
+        className="font-display text-ink/[0.07] pointer-events-none absolute top-2 right-3 text-3xl leading-none font-bold"
+      >
+        {period.slice(0, 4)}
+      </span>
+      <span className="font-display text-ink block text-[13px] font-bold tracking-[0.06em] uppercase">
+        {period}
+      </span>
+      {description && (
+        <span className="text-mute mt-2 block text-[13px] leading-[1.5]">
+          {description}
+        </span>
+      )}
+      <span className="text-mute group-hover/card:text-brand mt-3 flex items-center gap-1 text-[12px] font-semibold tracking-[0.06em] uppercase transition-colors">
+        Түүхийг үзэх
+        <ArrowUpRight className="size-3.5" aria-hidden="true" />
+      </span>
+    </Link>
+  );
+}
+
+function Marker({
+  medal,
+  className,
+}: {
+  medal: Medal | null;
+  className?: string;
+}) {
+  return (
+    <span
+      aria-hidden="true"
+      className={`ring-line block size-4 rounded-full border-[3px] border-white ring-1 transition-transform duration-200 group-hover:scale-110 ${
+        medal ? MEDAL_DOT[medal] : "bg-brand"
+      } ${className ?? ""}`}
+    />
   );
 }

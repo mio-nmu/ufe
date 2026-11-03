@@ -1,6 +1,6 @@
 "use client";
 
-import { Shirt, Video as VideoIcon } from "lucide-react";
+import { CalendarDays, Shirt, Video as VideoIcon } from "lucide-react";
 
 import {
   CollectionManager,
@@ -10,6 +10,7 @@ import {
 
 type Row = Record<string, unknown> & { id: string };
 
+// Defined before the configs below: playerCard calls asTextFn at load.
 const asText = (row: Row, key: string) => String(row[key] ?? "").trim();
 
 const visible = (row: Row, key: string) =>
@@ -31,6 +32,7 @@ const PLAYER_FIELDS: CollectionConfig["fields"] = [
   },
   {
     name: "slug",
+    slugFrom: "name",
     label: "Slug (URL нэр)",
     type: "text",
     required: true,
@@ -103,7 +105,7 @@ const playerCard: CollectionConfig["card"] = {
         <MediaPill>{asText(row, "position")}</MediaPill>
       ) : null}
       {row.isCaptain ? (
-        <span className="bg-ink rounded-full px-2 py-0.5 text-[11px] font-semibold text-white">
+        <span className="bg-ink rounded-full px-2 py-0.5 text-[12px] font-semibold text-white">
           Ахлагч
         </span>
       ) : null}
@@ -121,7 +123,7 @@ const playerCard: CollectionConfig["card"] = {
   status: (row) => visible(row, "isPublic"),
   extras: (row) =>
     row.ppg || row.rpg || row.apg ? (
-      <div className="text-muted-foreground mt-auto grid grid-cols-3 gap-1 pt-2 text-center text-[11px]">
+      <div className="text-muted-foreground mt-auto grid grid-cols-3 gap-1 pt-2 text-center text-[12px]">
         {(
           [
             ["PPG", row.ppg],
@@ -139,6 +141,58 @@ const playerCard: CollectionConfig["card"] = {
       </div>
     ) : null,
 };
+
+// ─── Удирдлага (Executives) ─────────────────────────────────────────────────
+
+const EXEC_GROUPS: Record<string, string> = {
+  BUSINESS: "Бизнес",
+  COACHES: "Дасгалжуулагчид",
+  OPERATIONS: "Спортын",
+  OWNERSHIP: "Эзэмшил",
+  STAFF: "Ажилтнууд",
+};
+
+// ─── Галерей (Media albums) ─────────────────────────────────────────────────
+
+const ALBUM_CATEGORIES: Record<string, string> = {
+  COMMUNITY: "Нийгмийн",
+  EVENTS: "Арга хэмжээ",
+  GAMES: "Тоглолт",
+};
+
+// ─── Видео ──────────────────────────────────────────────────────────────────
+
+const VIDEO_CATEGORIES: Record<string, string> = {
+  BEHIND_THE_SCENES: "Ар тал",
+  HIGHLIGHTS: "Онцлох",
+  INTERVIEWS: "Ярилцлага",
+  PRESS: "Хэвлэл",
+};
+
+// ─── Дэлгүүр (Shop products) ────────────────────────────────────────────────
+
+const SHOP_CATEGORIES: Record<string, string> = {
+  GEAR: "Хэрэгсэл",
+  HATS: "Малгай",
+  HOODIES: "Худи",
+  JERSEYS: "Өмсгөл",
+  KIDS: "Хүүхдэд",
+  TEES: "Цамц",
+};
+
+// ─── Тоглолтууд (Games / schedule) ─────────────────────────────────────────
+
+const GAME_STATUS = [
+  { value: "SCHEDULED", label: "Товлогдсон" },
+  { value: "FINAL", label: "Дууссан" },
+  { value: "CANCELLED", label: "Цуцалсан" },
+];
+
+const ubDateTime = new Intl.DateTimeFormat("mn-MN", {
+  dateStyle: "medium",
+  timeStyle: "short",
+  timeZone: "Asia/Ulaanbaatar",
+});
 
 export function PlayersManager() {
   return (
@@ -169,6 +223,7 @@ export function StaffManager() {
           { name: "name", label: "Нэр", type: "text", required: true },
           {
             name: "slug",
+            slugFrom: "name",
             label: "Slug (URL нэр)",
             type: "text",
             required: true,
@@ -217,16 +272,6 @@ export function StaffManager() {
   );
 }
 
-// ─── Удирдлага (Executives) ─────────────────────────────────────────────────
-
-const EXEC_GROUPS: Record<string, string> = {
-  BUSINESS: "Бизнес",
-  COACHES: "Дасгалжуулагчид",
-  OPERATIONS: "Спортын",
-  OWNERSHIP: "Эзэмшил",
-  STAFF: "Ажилтнууд",
-};
-
 export function ManagementManager() {
   return (
     <CollectionManager
@@ -240,6 +285,7 @@ export function ManagementManager() {
           { name: "name", label: "Нэр", type: "text", required: true },
           {
             name: "slug",
+            slugFrom: "name",
             label: "Slug (URL нэр)",
             type: "text",
             required: true,
@@ -291,14 +337,6 @@ export function ManagementManager() {
   );
 }
 
-// ─── Галерей (Media albums) ─────────────────────────────────────────────────
-
-const ALBUM_CATEGORIES: Record<string, string> = {
-  COMMUNITY: "Нийгмийн",
-  EVENTS: "Арга хэмжээ",
-  GAMES: "Тоглолт",
-};
-
 export function GalleryManager() {
   return (
     <CollectionManager
@@ -312,6 +350,7 @@ export function GalleryManager() {
           { name: "title", label: "Цомгийн нэр", type: "text", required: true },
           {
             name: "slug",
+            slugFrom: "title",
             label: "Slug (URL нэр)",
             type: "text",
             required: true,
@@ -374,15 +413,6 @@ export function GalleryManager() {
   );
 }
 
-// ─── Видео ──────────────────────────────────────────────────────────────────
-
-const VIDEO_CATEGORIES: Record<string, string> = {
-  BEHIND_THE_SCENES: "Ар тал",
-  HIGHLIGHTS: "Онцлох",
-  INTERVIEWS: "Ярилцлага",
-  PRESS: "Хэвлэл",
-};
-
 export function VideosManager() {
   return (
     <CollectionManager
@@ -396,6 +426,7 @@ export function VideosManager() {
           { name: "title", label: "Гарчиг", type: "text", required: true },
           {
             name: "slug",
+            slugFrom: "title",
             label: "Slug (URL нэр)",
             type: "text",
             required: true,
@@ -450,7 +481,7 @@ export function VideosManager() {
                 </MediaPill>
               ) : null}
               {row.isFeatured ? (
-                <span className="bg-ink rounded-full px-2 py-0.5 text-[11px] font-semibold text-white">
+                <span className="bg-ink rounded-full px-2 py-0.5 text-[12px] font-semibold text-white">
                   Онцлох
                 </span>
               ) : null}
@@ -468,17 +499,6 @@ export function VideosManager() {
   );
 }
 
-// ─── Дэлгүүр (Shop products) ────────────────────────────────────────────────
-
-const SHOP_CATEGORIES: Record<string, string> = {
-  GEAR: "Хэрэгсэл",
-  HATS: "Малгай",
-  HOODIES: "Худи",
-  JERSEYS: "Өмсгөл",
-  KIDS: "Хүүхдэд",
-  TEES: "Цамц",
-};
-
 export function ShopManager() {
   return (
     <CollectionManager
@@ -491,6 +511,7 @@ export function ShopManager() {
           { name: "name", label: "Нэр", type: "text", required: true },
           {
             name: "slug",
+            slugFrom: "name",
             label: "Slug (URL нэр)",
             type: "text",
             required: true,
@@ -544,7 +565,7 @@ export function ShopManager() {
                 </MediaPill>
               ) : null}
               {asText(row, "badge") ? (
-                <span className="bg-ink rounded-full px-2 py-0.5 text-[11px] font-semibold text-white">
+                <span className="bg-ink rounded-full px-2 py-0.5 text-[12px] font-semibold text-white">
                   {asText(row, "badge")}
                 </span>
               ) : null}
@@ -586,6 +607,7 @@ export function NewsManager() {
           { name: "title", label: "Гарчиг", type: "text", required: true },
           {
             name: "slug",
+            slugFrom: "title",
             label: "Slug (URL нэр)",
             type: "text",
             required: true,
@@ -614,7 +636,16 @@ export function NewsManager() {
             placeholder: "Мэдээ",
           },
           { name: "tags", label: "Тагууд (таслалаар)", type: "list" },
-          { name: "isFeatured", label: "Онцлох", type: "checkbox" },
+          {
+            name: "publishedAt",
+            label: "Нийтэлсэн огноо (Улаанбаатар)",
+            type: "datetime",
+          },
+          {
+            name: "isFeatured",
+            label: "Онцлох (нүүр хуудасны том картад эхэлж гарна)",
+            type: "checkbox",
+          },
           {
             name: "isPublished",
             label: "Нийтэлсэн",
@@ -632,7 +663,7 @@ export function NewsManager() {
                 <MediaPill>{asText(row, "category")}</MediaPill>
               ) : null}
               {row.isFeatured ? (
-                <span className="bg-ink rounded-full px-2 py-0.5 text-[11px] font-semibold text-white">
+                <span className="bg-ink rounded-full px-2 py-0.5 text-[12px] font-semibold text-white">
                   Онцлох
                 </span>
               ) : null}
@@ -649,6 +680,109 @@ export function NewsManager() {
               .filter(Boolean)
               .join(" · ") || null,
           status: (row) => visible(row, "isPublished"),
+        },
+      }}
+    />
+  );
+}
+
+export function GamesManager() {
+  return (
+    <CollectionManager
+      config={{
+        title: "Тоглолтууд",
+        description:
+          "Хуваарь, үр дүн. Өрсөлдөгчийн лого, өнгө нүүр хуудасны онооны картад харагдана.",
+        endpoint: "/content/games",
+        listQuery: { limit: "100" },
+        fields: [
+          {
+            name: "opponent",
+            label: "Өрсөлдөгч баг",
+            type: "text",
+            required: true,
+            placeholder: "NUM Falcons",
+          },
+          {
+            name: "opponentShort",
+            label: "Богино нэр (утсан дээр)",
+            type: "text",
+            placeholder: "Falcons",
+          },
+          { name: "opponentLogo", label: "Өрсөлдөгчийн лого", type: "image" },
+          {
+            name: "opponentColor",
+            label: "Өрсөлдөгчийн өнгө",
+            type: "color",
+          },
+          {
+            name: "tipsAt",
+            label: "Эхлэх цаг (Улаанбаатар)",
+            type: "datetime",
+            required: true,
+          },
+          { name: "venue", label: "Байршил", type: "text" },
+          { name: "competition", label: "Тэмцээн", type: "text" },
+          { name: "round", label: "Шат / тойрог", type: "text" },
+          {
+            name: "isHome",
+            label: "Талбай дээрээ",
+            type: "checkbox",
+            defaultChecked: true,
+          },
+          {
+            name: "status",
+            label: "Төлөв",
+            type: "select",
+            options: GAME_STATUS,
+          },
+          { name: "teamScore", label: "Манай оноо", type: "number" },
+          { name: "opponentScore", label: "Өрсөлдөгчийн оноо", type: "number" },
+          { name: "streamUrl", label: "Шууд дамжуулалт (URL)", type: "text" },
+          { name: "ticketUrl", label: "Тасалбар (URL)", type: "text" },
+          { name: "note", label: "Тэмдэглэл", type: "textarea" },
+        ],
+        card: {
+          aspect: "16/10",
+          imageField: "opponentLogo",
+          fallbackIcon: CalendarDays,
+          pills: (row) =>
+            typeof row.opponentColor === "string" && row.opponentColor ? (
+              <span
+                className="inline-flex items-center gap-1.5 rounded-full bg-white/90 px-2 py-0.5 text-[12px] font-semibold"
+                title="Өрсөлдөгчийн өнгө"
+              >
+                <span
+                  aria-hidden="true"
+                  className="size-3 rounded-full border border-black/10"
+                  style={{ backgroundColor: row.opponentColor }}
+                />
+                {row.opponentColor}
+              </span>
+            ) : null,
+          title: asTextFn("opponent"),
+          meta: (row) =>
+            [
+              row.tipsAt
+                ? ubDateTime.format(new Date(String(row.tipsAt)))
+                : null,
+              asText(row, "venue") || null,
+            ]
+              .filter(Boolean)
+              .join(" · ") || null,
+          extras: (row) =>
+            row.status === "FINAL" ? (
+              <span className="text-sm font-semibold tabular-nums">
+                {String(row.teamScore ?? "–")} :{" "}
+                {String(row.opponentScore ?? "–")}
+              </span>
+            ) : null,
+          status: (row) =>
+            row.status === "FINAL"
+              ? { label: "Дууссан", tone: "neutral" as const }
+              : row.status === "CANCELLED"
+                ? { label: "Цуцалсан", tone: "amber" as const }
+                : { label: "Товлогдсон", tone: "green" as const },
         },
       }}
     />

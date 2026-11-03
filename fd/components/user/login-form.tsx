@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -24,7 +23,7 @@ import { routes } from "@/config/routes";
 import { useAuth } from "@/providers/auth-provider";
 
 const inputStyles =
-  "border-line bg-paper focus-visible:border-ink focus-visible:ring-0 h-11 rounded-none px-3 text-base";
+  "border-line bg-paper focus-visible:border-ink focus-visible:ring-0 h-11 rounded-lg px-3 text-base";
 
 export function LoginForm() {
   const { login } = useAuth();
@@ -72,6 +71,14 @@ export function LoginForm() {
         (getFieldState); without it they crash at render. */
     <Form {...form}>
       <form onSubmit={handleSubmit} noValidate className="grid gap-5">
+        <div className="mb-2">
+          <h1 className="font-display text-ink text-[clamp(28px,3vw,36px)] leading-none font-bold tracking-[0.02em] uppercase">
+            Нэвтрэх
+          </h1>
+          <p className="text-mute mt-2 text-sm">
+            Өөрийн бүртгэлээр нэвтэрнэ үү.
+          </p>
+        </div>
         <FormField
           control={form.control}
           name="identifier"
@@ -105,7 +112,7 @@ export function LoginForm() {
                 <Input
                   type="password"
                   autoComplete="current-password"
-                  placeholder="••••••••"
+                  placeholder="Нууц үгээ оруулна уу"
                   className={inputStyles}
                   {...field}
                 />
@@ -116,7 +123,7 @@ export function LoginForm() {
         />
         <TeamButton
           type="submit"
-          variant="solid"
+          variant="primary"
           className="mt-2 w-full disabled:pointer-events-none disabled:opacity-50"
           disabled={submitting}
         >
@@ -125,15 +132,6 @@ export function LoginForm() {
           )}
           {submitting ? "Нэвтэрч байна…" : "Нэвтрэх"}
         </TeamButton>
-        <p className="text-mute text-center text-sm">
-          Шинэ хэрэглэгч үү?{" "}
-          <Link
-            href={routes.register}
-            className="text-ink team-focus font-semibold underline-offset-4 hover:underline"
-          >
-            Бүртгэл үүсгэх
-          </Link>
-        </p>
       </form>
     </Form>
   );

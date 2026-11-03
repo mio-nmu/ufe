@@ -14,7 +14,7 @@ import { toast } from "sonner";
 
 import { HISTORY_PHOTO_FOLDERS } from "@/components/team/history-experience";
 import { ConfirmDeleteDialog } from "@/components/admin/entity-cards";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { uploadAdminImageDetailed } from "@/lib/admin/media-upload";
 import { revalidatePublicTag } from "@/lib/admin/revalidate";
@@ -33,30 +33,6 @@ import type { HistoryPhotoRow } from "@/types/content";
 const ENDPOINT = "/content/history-photos";
 const QUERY_KEY = ["admin", "history-photos"] as const;
 const MAX_UPLOAD_MB = 20;
-
-function labelFor(folder: string): string {
-  return folder.replace("-", "–");
-}
-
-function errorMessage(error: unknown, fallback: string): string {
-  return error instanceof ApiClientError ? error.message : fallback;
-}
-
-/** Groups rows by folder, preserving the API's chronological ordering. */
-function groupByFolder(
-  items: HistoryPhotoRow[],
-): Map<string, HistoryPhotoRow[]> {
-  const groups = new Map<string, HistoryPhotoRow[]>();
-  for (const photo of items) {
-    const list = groups.get(photo.folder);
-    if (list) {
-      list.push(photo);
-    } else {
-      groups.set(photo.folder, [photo]);
-    }
-  }
-  return groups;
-}
 
 export function HistoryPhotosManager() {
   const queryClient = useQueryClient();
@@ -115,6 +91,22 @@ export function HistoryPhotosManager() {
       )}
     </section>
   );
+}
+
+/** Groups rows by folder, preserving the API's chronological ordering. */
+function groupByFolder(
+  items: HistoryPhotoRow[],
+): Map<string, HistoryPhotoRow[]> {
+  const groups = new Map<string, HistoryPhotoRow[]>();
+  for (const photo of items) {
+    const list = groups.get(photo.folder);
+    if (list) {
+      list.push(photo);
+    } else {
+      groups.set(photo.folder, [photo]);
+    }
+  }
+  return groups;
 }
 
 function FolderSection({
@@ -217,7 +209,7 @@ function FolderSection({
           aria-label={`${labelFor(folder)}-д зураг нэмэх`}
           onClick={() => inputRef.current?.click()}
           disabled={busy}
-          className="border-line text-muted-foreground hover:border-primary/60 hover:text-primary flex aspect-[3/2] cursor-pointer flex-col items-center justify-center gap-1 rounded-lg border border-dashed text-[11px] font-medium transition-colors disabled:opacity-60"
+          className="border-line text-muted-foreground hover:border-primary/60 hover:text-primary flex aspect-[3/2] cursor-pointer flex-col items-center justify-center gap-1 rounded-lg border border-dashed text-[12px] font-medium transition-colors disabled:opacity-60"
         >
           {busy ? (
             <>
@@ -327,7 +319,7 @@ function PhotoCard({
           alt={photo.caption ?? ""}
           className="h-full w-full object-cover"
         />
-        <span className="bg-background/85 absolute top-1.5 left-1.5 rounded px-1.5 py-0.5 text-[10px] font-semibold">
+        <span className="bg-background/85 absolute top-1.5 left-1.5 rounded px-1.5 py-0.5 text-[12px] font-semibold">
           {position}
         </span>
         {busy ? (
@@ -356,7 +348,7 @@ function PhotoCard({
               aria-label="Өмнөх байрлал руу нүүлгэх"
               disabled={busy || position === "1/1"}
               onClick={() => onMove(-1)}
-              className="hover:bg-muted cursor-pointer rounded p-1 disabled:opacity-30"
+              className={buttonVariants({ size: "icon-xs", variant: "ghost" })}
             >
               <ChevronLeft className="size-3.5" aria-hidden="true" />
             </button>
@@ -365,7 +357,7 @@ function PhotoCard({
               aria-label="Дараагийн байрлал руу нүүлгэх"
               disabled={busy}
               onClick={() => onMove(1)}
-              className="hover:bg-muted cursor-pointer rounded p-1 disabled:opacity-30"
+              className={buttonVariants({ size: "icon-xs", variant: "ghost" })}
             >
               <ChevronRight className="size-3.5" aria-hidden="true" />
             </button>
@@ -374,7 +366,7 @@ function PhotoCard({
               aria-label="Зургийг солих"
               disabled={busy}
               onClick={() => replaceRef.current?.click()}
-              className="hover:bg-muted cursor-pointer rounded p-1 disabled:opacity-30"
+              className={buttonVariants({ size: "icon-xs", variant: "ghost" })}
             >
               <Replace className="size-3.5" aria-hidden="true" />
             </button>
@@ -415,4 +407,12 @@ function PhotoCard({
       />
     </div>
   );
+}
+
+function labelFor(folder: string): string {
+  return folder.replace("-", "–");
+}
+
+function errorMessage(error: unknown, fallback: string): string {
+  return error instanceof ApiClientError ? error.message : fallback;
 }

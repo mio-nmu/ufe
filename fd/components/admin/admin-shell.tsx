@@ -55,7 +55,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
                 groupIndex > 0 && "border-border/60 mt-1 border-t pt-4",
               )}
             >
-              <p className="text-muted-foreground px-3 pb-0.5 text-[10px] font-semibold tracking-[0.12em] uppercase">
+              <p className="text-muted-foreground px-3 pb-0.5 text-[12px] font-semibold tracking-[0.12em] uppercase">
                 {group.label}
               </p>
               {group.items.map((item) => {

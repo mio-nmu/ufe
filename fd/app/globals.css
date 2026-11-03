@@ -54,120 +54,92 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
-/* ─── Team site design system (Broncos black, blue & white) ─────────────────
-   Semantic tokens consumed by app/(public) via bg-paper / text-ink /
-   border-line / bg-brand etc. White surfaces with black anchors and royal-blue
-   action states.
-   The admin & user areas keep the shadcn vars further below untouched. */
+/* ─── Design system: white, cool gray & dark blue ───────────────────────────
+   ONE palette for the public site, the user area and the admin. Components
+   use the semantic tokens (bg-paper / bg-paper-soft / text-ink / text-mute /
+   border-line / bg-brand / bg-navy) — never raw hex values.
+     paper       #FFFFFF  main surface
+     paper-soft  #F5F7FA  alternate section / card well
+     paper-muted #EDF1F6  placeholders, pressed states
+     line        #E2E8F0  hairlines, card borders
+     mute        #5B6678  secondary text (AA on white and paper-soft)
+     ink         #0B1526  text, dark sections (blue-black, never pure black)
+     brand       #0B2A5B  dark blue — header, primary actions, accents
+     brand-2     #163C7A  brand hover / pressed
+     navy        #071A3A  deepest blue — hero and feature panels */
 @theme inline {
   --color-paper: var(--paper);
   --color-paper-soft: var(--paper-soft);
+  --color-paper-muted: var(--paper-muted);
   --color-ink: var(--ink);
   --color-mute: var(--mute);
   --color-line: var(--line);
   --color-brand: var(--brand);
   --color-brand-2: var(--brand-2);
   --color-brand-contrast: var(--brand-contrast);
-  --color-gold: var(--gold);
+  --color-navy: var(--navy);
   --font-display:
     var(--font-team-display), "Roboto Condensed", "Segoe UI", Arial, sans-serif;
 }
 
+/* Two elevation steps only: resting cards and hovered/raised surfaces. */
 @theme {
-  --shadow-card: 0 12px 24px rgb(0 0 0 / 0.08);
-  --shadow-card-hover: 0 12px 24px rgb(0 0 0 / 0.12);
+  --shadow-card: 0 1px 2px rgb(11 21 38 / 0.05), 0 1px 3px rgb(11 21 38 / 0.04);
+  --shadow-card-hover:
+    0 10px 24px rgb(11 21 38 / 0.1), 0 2px 6px rgb(11 21 38 / 0.05);
 }
 
 :root {
   --paper: #ffffff;
-  --paper-soft: #f1f4f9;
-  --ink: #05070b;
-  --mute: #536070;
-  --line: #d3d9e2;
-  --brand: #17439b;
-  --brand-2: #2d62c6;
+  --paper-soft: #f5f7fa;
+  --paper-muted: #edf1f6;
+  --ink: #0b1526;
+  --mute: #5b6678;
+  --line: #e2e8f0;
+  --brand: #0b2a5b;
+  --brand-2: #163c7a;
   --brand-contrast: #ffffff;
-  --gold: #ffffff;
+  --navy: #071a3a;
 }
 
 .public-site {
-  --paper: #f3f1ec;
-  --paper-soft: #e7e6e1;
-  --ink: #05070b;
-  --mute: #536070;
-  --line: #c8ccd1;
-  --brand: #17439b;
-  --brand-2: #2d62c6;
-  --brand-contrast: #ffffff;
-  --gold: #ffffff;
   background-color: var(--paper);
-  background-image:
-    radial-gradient(
-      circle at 20% 20%,
-      rgb(5 7 11 / 0.035) 0 0.7px,
-      transparent 0.8px
-    ),
-    radial-gradient(
-      circle at 80% 60%,
-      rgb(5 7 11 / 0.025) 0 0.6px,
-      transparent 0.7px
-    );
-  background-size:
-    7px 7px,
-    11px 11px;
-}
-
-.public-site .bg-paper {
-  background-color: transparent;
-}
-
-.public-site .text-ink {
-  color: #05070b;
-}
-
-.public-site .text-mute {
-  color: #536070;
-}
-
-.public-site .border-ink {
-  border-color: #05070b;
 }
 
 :root {
-  /* Monochrome admin palette — same ink/paper/gray family as the team
-     site above; only the destructive red keeps a hue. */
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: #0b0b0c;
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: #0b0b0c;
-  --muted: #ececec;
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: #0b0b0c;
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: #0b0b0c;
-  --chart-1: #0b0b0c;
-  --chart-2: #3a3a38;
-  --chart-3: #5a5a57;
-  --chart-4: #9a9a97;
-  --chart-5: #d9d9d6;
-  --radius: 0.375rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: #0b0b0c;
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: #0b0b0c;
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: #0b0b0c;
+  /* shadcn tokens (admin & user areas) mapped onto the same palette. */
+  --background: #ffffff;
+  --foreground: #0b1526;
+  --card: #ffffff;
+  --card-foreground: #0b1526;
+  --popover: #ffffff;
+  --popover-foreground: #0b1526;
+  --primary: #0b2a5b;
+  --primary-foreground: #ffffff;
+  --secondary: #f5f7fa;
+  --secondary-foreground: #0b1526;
+  --muted: #edf1f6;
+  --muted-foreground: #5b6678;
+  --accent: #f5f7fa;
+  --accent-foreground: #0b1526;
+  --destructive: #c62828;
+  --border: #e2e8f0;
+  --input: #e2e8f0;
+  --ring: #0b2a5b;
+  --chart-1: #0b2a5b;
+  --chart-2: #1d4ed8;
+  --chart-3: #5b7db8;
+  --chart-4: #9db1d6;
+  --chart-5: #d5dff0;
+  --radius: 0.5rem;
+  --sidebar: #f5f7fa;
+  --sidebar-foreground: #0b1526;
+  --sidebar-primary: #0b2a5b;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #edf1f6;
+  --sidebar-accent-foreground: #0b1526;
+  --sidebar-border: #e2e8f0;
+  --sidebar-ring: #0b2a5b;
 }
 
 @layer base {
@@ -206,8 +178,10 @@
 /* ─── Team site utilities ─────────────────────────────────────────────────── */
 
 /* Page shell: max 1280, side padding 32 / 24 / 16 (tablet / mobile). */
+/* Site container: one width and gutter for header, every section and the
+   footer, so all public pages share the same left and right edges. */
 .team-shell {
-  max-width: 1280px;
+  max-width: 1600px;
   margin-inline: auto;
   padding-inline: 16px;
 }
@@ -221,11 +195,10 @@
     padding-inline: 32px;
   }
 }
-
-/* Landing-page variant — wider rail (1400) trims the side gutters on the
-   home page without touching the inner pages. */
-.team-shell-wide {
-  max-width: 1400px;
+@media (min-width: 1536px) {
+  .team-shell {
+    padding-inline: 48px;
+  }
 }
 
 /* Section eyebrow label (meta): 12px uppercase, wide tracking, mute. */
@@ -237,14 +210,15 @@
   text-transform: uppercase;
 }
 
-/* Card lift on hover — 4px rise, editorial shadow, 0.2s ease. */
+/* THE card hover, site-wide: 2px rise + raised shadow, 0.2s ease. */
 .card-lift {
   transition:
     box-shadow 0.2s ease,
-    transform 0.2s ease;
+    transform 0.2s ease,
+    border-color 0.2s ease;
 }
 .card-lift:hover {
-  transform: translateY(-4px);
+  transform: translateY(-2px);
   box-shadow: var(--shadow-card-hover);
 }
 
@@ -295,30 +269,6 @@
   transform: translate3d(220%, 0, 0);
 }
 
-/* Duplicate the utility-bar message so its left-to-right loop has no gap. */
-.utility-ticker {
-  --ticker-duration: 32s;
-  overflow: hidden;
-}
-.utility-ticker__track {
-  width: 200%;
-  flex: 0 0 200%;
-  animation: utility-ticker-scroll var(--ticker-duration) linear infinite;
-}
-.utility-ticker__group {
-  width: 50%;
-  flex: 0 0 50%;
-  padding-inline: 24px;
-}
-@keyframes utility-ticker-scroll {
-  from {
-    transform: translateX(-50%);
-  }
-  to {
-    transform: translateX(0);
-  }
-}
-
 /* Route-change entrance: 8px rise + fade over 240ms, ease-out. */
 @keyframes page-rise {
   from {
@@ -347,9 +297,10 @@
   transform: translateY(0);
 }
 
-/* Focus ring: 2px ink, 2px offset — the site-wide focus treatment. */
+/* Focus ring: 2px, 2px offset — the site-wide focus treatment. */
 .team-focus:focus-visible {
-  outline: 2px solid var(--ink);
+  /* Dark-surface controls set [--focus-ring:#fff] so the ring stays visible. */
+  outline: 2px solid var(--focus-ring, var(--ink));
   outline-offset: 2px;
 }
 

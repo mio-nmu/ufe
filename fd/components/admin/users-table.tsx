@@ -16,26 +16,15 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { useAdminUsers, useSetUserStatus } from "@/hooks/use-admin";
+import {
+  useAdminUsers,
+  useSetUserRole,
+  useSetUserStatus,
+} from "@/hooks/use-admin";
+import { useAuth } from "@/providers/auth-provider";
 import { ApiClientError } from "@/lib/api-client";
 import type { User } from "@/types/api";
 import { toast } from "sonner";
-
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString(undefined, {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  });
-}
-
-function UserStatusBadge({ user }: { user: User }) {
-  return user.isActive ? (
-    <Badge variant="outline">Active</Badge>
-  ) : (
-    <Badge variant="secondary">Inactive</Badge>
-  );
-}
 
 export function UsersTable() {
   const [page, setPage] = useState(1);
@@ -49,6 +38,40 @@ export function UsersTable() {
       search: submittedSearch || undefined,
     });
   const setStatus = useSetUserStatus();
+  const setRole = useSetUserRole();
+  const { user: me } = useAuth();
+  // Only the row being changed shows a spinner / is disabled.
+  const busyId =
+    (setStatus.isPending && setStatus.variables?.id) ||
+    (setRole.isPending && setRole.variables?.id) ||
+    null;
+
+  function errorText(mutationError: unknown): string {
+    return mutationError instanceof ApiClientError
+      ? mutationError.message
+      : "Хэрэглэгчийг шинэчилж чадсангүй";
+  }
+
+  function onToggleRole(user: User): void {
+    const role = user.role === "ADMIN" ? "USER" : "ADMIN";
+    const question =
+      role === "ADMIN"
+        ? `${user.email} хэрэглэгчид админ эрх олгох уу? Админ сайтын бүх агуулгыг засах боломжтой.`
+        : `${user.email} хэрэглэгчийн админ эрхийг хасах уу?`;
+    if (!window.confirm(question)) return;
+    setRole.mutate(
+      { id: user.id, role },
+      {
+        onSuccess: ({ user: updated }) =>
+          toast.success(
+            updated.role === "ADMIN"
+              ? `${updated.email} одоо админ`
+              : `${updated.email} админ эрхгүй боллоо`,
+          ),
+        onError: (mutationError) => toast.error(errorText(mutationError)),
+      },
+    );
+  }
 
   function onSearchSubmit(event: React.FormEvent<HTMLFormElement>): void {
     event.preventDefault();
@@ -62,16 +85,10 @@ export function UsersTable() {
       {
         onSuccess: ({ user: updated }) => {
           toast.success(
-            `${updated.email} is now ${updated.isActive ? "active" : "inactive"}`,
+            `${updated.email} ${updated.isActive ? "идэвхжлээ" : "идэвхгүй боллоо"}`,
           );
         },
-        onError: (mutationError) => {
-          const message =
-            mutationError instanceof ApiClientError
-              ? mutationError.message
-              : "Could not update the user";
-          toast.error(message);
-        },
+        onError: (mutationError) => toast.error(errorText(mutationError)),
       },
     );
   }
@@ -79,8 +96,8 @@ export function UsersTable() {
   return (
     <div className="space-y-4">
       <PageHeader
-        title="Users"
-        description="Search, browse and activate or deactivate accounts. Changes take effect immediately."
+        title="Хэрэглэгчид"
+        description="Хайх, админ эрх олгох/хасах, идэвхжүүлэх. Өөрчлөлт шууд хэрэгжинэ."
       />
 
       <form
@@ -96,18 +113,22 @@ export function UsersTable() {
           <Input
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            placeholder="Search by email or name…"
-            aria-label="Search users"
+            placeholder="Имэйл эсвэл нэрээр хайх…"
+            aria-label="Хэрэглэгч хайх"
             className="pl-8"
           />
         </div>
         <Button type="submit" variant="outline" disabled={isFetching}>
-          Search
+          Хайх
         </Button>
       </form>
 
       {isPending ? (
-        <div className="space-y-2" aria-busy="true" aria-label="Loading users">
+        <div
+          className="space-y-2"
+          aria-busy="true"
+          aria-label="Хэрэглэгчид ачааллаж байна"
+        >
           {Array.from({ length: 5 }).map((_, index) => (
             <Skeleton key={index} className="h-12 w-full" />
           ))}
@@ -120,14 +141,14 @@ export function UsersTable() {
           <p>
             {error instanceof ApiClientError
               ? error.message
-              : "Failed to load users."}
+              : "Хэрэглэгчдийг ачаалж чадсангүй."}
           </p>
           <Button
             variant="outline"
             className="w-fit"
             onClick={() => void refetch()}
           >
-            Try again
+            Дахин оролдох
           </Button>
         </div>
       ) : !data || data.items.length === 0 ? (
@@ -135,7 +156,7 @@ export function UsersTable() {
           className="text-muted-foreground py-12 text-center text-sm"
           role="status"
         >
-          No users match your search.
+          Хайлтад тохирох хэрэглэгч алга.
         </p>
       ) : (
         <>
@@ -143,12 +164,12 @@ export function UsersTable() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead>Role</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Joined</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                  <TableHead>Нэр</TableHead>
+                  <TableHead>Имэйл</TableHead>
+                  <TableHead>Эрх</TableHead>
+                  <TableHead>Төлөв</TableHead>
+                  <TableHead>Бүртгүүлсэн</TableHead>
+                  <TableHead className="text-right">Үйлдэл</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -162,7 +183,7 @@ export function UsersTable() {
                       <Badge
                         variant={user.role === "ADMIN" ? "default" : "outline"}
                       >
-                        {user.role}
+                        {user.role === "ADMIN" ? "Админ" : "Хэрэглэгч"}
                       </Badge>
                     </TableCell>
                     <TableCell>
@@ -172,20 +193,38 @@ export function UsersTable() {
                       {formatDate(user.createdAt)}
                     </TableCell>
                     <TableCell className="text-right">
-                      <Button
-                        size="sm"
-                        variant={user.isActive ? "destructive" : "default"}
-                        disabled={setStatus.isPending}
-                        onClick={() => onToggleStatus(user)}
-                      >
-                        {setStatus.isPending ? (
-                          <Loader2
-                            className="animate-spin"
-                            aria-hidden="true"
-                          />
-                        ) : null}
-                        {user.isActive ? "Deactivate" : "Activate"}
-                      </Button>
+                      {user.id === me?.id ? (
+                        <span className="text-muted-foreground text-sm">
+                          Та өөрөө
+                        </span>
+                      ) : (
+                        <div className="inline-flex gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={busyId === user.id}
+                            onClick={() => onToggleRole(user)}
+                          >
+                            {user.role === "ADMIN"
+                              ? "Админ эрх хасах"
+                              : "Админ болгох"}
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant={user.isActive ? "destructive" : "default"}
+                            disabled={busyId === user.id}
+                            onClick={() => onToggleStatus(user)}
+                          >
+                            {busyId === user.id ? (
+                              <Loader2
+                                className="animate-spin"
+                                aria-hidden="true"
+                              />
+                            ) : null}
+                            {user.isActive ? "Идэвхгүй болгох" : "Идэвхжүүлэх"}
+                          </Button>
+                        </div>
+                      )}
                     </TableCell>
                   </TableRow>
                 ))}
@@ -195,11 +234,11 @@ export function UsersTable() {
 
           <div
             className="flex items-center justify-between gap-2"
-            aria-label="Pagination"
+            aria-label="Хуудаслалт"
           >
             <p className="text-muted-foreground text-sm">
-              Page {data.meta.page} of {data.meta.totalPages} ·{" "}
-              {data.meta.total} users
+              {data.meta.page}/{data.meta.totalPages} хуудас · {data.meta.total}{" "}
+              хэрэглэгч
             </p>
             <div className="flex gap-2">
               <Button
@@ -208,7 +247,7 @@ export function UsersTable() {
                 disabled={!data.meta.hasPrev}
                 onClick={() => setPage((p) => p - 1)}
               >
-                Previous
+                Өмнөх
               </Button>
               <Button
                 variant="outline"
@@ -216,7 +255,7 @@ export function UsersTable() {
                 disabled={!data.meta.hasNext}
                 onClick={() => setPage((p) => p + 1)}
               >
-                Next
+                Дараах
               </Button>
             </div>
           </div>
@@ -224,4 +263,20 @@ export function UsersTable() {
       )}
     </div>
   );
+}
+
+function UserStatusBadge({ user }: { user: User }) {
+  return user.isActive ? (
+    <Badge variant="outline">Идэвхтэй</Badge>
+  ) : (
+    <Badge variant="secondary">Идэвхгүй</Badge>
+  );
+}
+
+function formatDate(iso: string): string {
+  return new Date(iso).toLocaleDateString("mn-MN", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
 }

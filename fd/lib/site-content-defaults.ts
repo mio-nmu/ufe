@@ -9,6 +9,7 @@ import {
   featuredNews,
   hero,
   history,
+  homeTimeline,
   players,
   stats,
   thanks,
@@ -51,6 +52,10 @@ export function siteContentDefault(
     },
     "home/stats": {
       items: stats.map((stat) => ({ label: stat.label, value: stat.value })),
+    },
+    "home/timeline": {
+      ...homeTimeline,
+      items: homeTimeline.items.map((item) => ({ ...item })),
     },
     "home/thanks": {
       heading: thanks.heading,

@@ -12,6 +12,8 @@ export interface GameRow {
   opponent: string;
   opponentShort: string | null;
   opponentLogo: string | null;
+  /** Opponent brand colour (#RRGGBB) set in the admin; null → ink. */
+  opponentColor?: string | null;
   isHome: boolean;
   tipsAt: string;
   venue: string;

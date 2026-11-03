@@ -4,7 +4,7 @@ import { ChevronDown } from "lucide-react";
 
 import { ParallaxLayer } from "@/components/team/parallax";
 import { WaveField } from "@/components/team/wave-field";
-import { TeamButton } from "@/components/team/button";
+import { TeamButton, teamButtonClass } from "@/components/team/button";
 import { HistoryExperience } from "@/components/team/history-experience";
 import { HistoryExtras } from "@/components/team/history-extras";
 import { routes } from "@/config/routes";
@@ -21,34 +21,10 @@ export const metadata: Metadata = {
 
 export const revalidate = 60;
 
-/** Sanitizes the CMS-edited timeline array from the history/page blob. */
-function timelineEntries(copy: PageCopy | null): TimelineEntry[] {
-  const raw = copy?.timeline;
-  if (!Array.isArray(raw)) return [];
-  const entries: TimelineEntry[] = [];
-  for (const item of raw) {
-    if (typeof item !== "object" || item === null) continue;
-    const entry = item as Record<string, unknown>;
-    if (typeof entry.period !== "string" || entry.period === "") continue;
-    entries.push({
-      bullets: Array.isArray(entry.bullets)
-        ? entry.bullets.filter((b): b is string => typeof b === "string")
-        : undefined,
-      highlightLabel:
-        typeof entry.highlightLabel === "string"
-          ? entry.highlightLabel
-          : undefined,
-      period: entry.period,
-      text: typeof entry.text === "string" ? entry.text : undefined,
-    });
-  }
-  return entries;
-}
-
 /**
  * Season-celebration history page: 720px ink hero with the outlined season
  * numeral over a parallax texture layer, then the sticky year rail +
- * side-scrolling era track (HistoryExperience) and the honour roll /
+ * paired era rows with photo mosaics (HistoryExperience) and the honour roll /
  * moments gallery / CTA band (HistoryExtras). Copy and timeline entries
  * come from the site-content history/page blob over static defaults; photos
  * come from the Cloudinary-backed history-photos content API, managed in
@@ -84,7 +60,7 @@ export default async function HistoryPage() {
         <div className="relative flex flex-col items-center px-4 py-20 sm:px-6">
           <nav
             aria-label="Breadcrumb"
-            className="text-mute mb-4 flex items-center gap-2 text-[12px] font-semibold tracking-[0.14em] uppercase"
+            className="text-mute mb-4 flex items-center gap-2 text-[12px] font-semibold tracking-[0.12em] uppercase"
           >
             <Link href="/" className="transition-colors hover:text-white">
               Нүүр
@@ -110,18 +86,18 @@ export default async function HistoryPage() {
           <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
             <a
               href="#timeline"
-              className="font-display team-focus bg-paper text-ink hover:bg-mute hover:text-paper inline-flex min-h-11 items-center px-6 text-sm font-semibold tracking-[0.06em] uppercase transition-colors"
+              className={teamButtonClass({ variant: "inverse" })}
             >
               Цаг хугацааны тууз
             </a>
-            <TeamButton variant="dark-outline" href={routes.site.roster}>
+            <TeamButton variant="inverse-outline" href={routes.site.roster}>
               Тоглогчид
             </TeamButton>
           </div>
 
           <div
             aria-hidden="true"
-            className="mt-12 hidden items-center gap-2 text-[12px] font-medium tracking-[0.14em] text-white/50 uppercase md:flex"
+            className="mt-12 hidden items-center gap-2 text-[12px] font-medium tracking-[0.12em] text-white/50 uppercase md:flex"
           >
             <ChevronDown className="animate-bounce" />
             Доош гүйлгэх
@@ -135,4 +111,28 @@ export default async function HistoryPage() {
       <HistoryExtras aubl={aubl} photosByFolder={photos} />
     </>
   );
+}
+
+/** Sanitizes the CMS-edited timeline array from the history/page blob. */
+function timelineEntries(copy: PageCopy | null): TimelineEntry[] {
+  const raw = copy?.timeline;
+  if (!Array.isArray(raw)) return [];
+  const entries: TimelineEntry[] = [];
+  for (const item of raw) {
+    if (typeof item !== "object" || item === null) continue;
+    const entry = item as Record<string, unknown>;
+    if (typeof entry.period !== "string" || entry.period === "") continue;
+    entries.push({
+      bullets: Array.isArray(entry.bullets)
+        ? entry.bullets.filter((b): b is string => typeof b === "string")
+        : undefined,
+      highlightLabel:
+        typeof entry.highlightLabel === "string"
+          ? entry.highlightLabel
+          : undefined,
+      period: entry.period,
+      text: typeof entry.text === "string" ? entry.text : undefined,
+    });
+  }
+  return entries;
 }

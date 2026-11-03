@@ -1,18 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
-
-import { env } from "@/lib/env";
-import {
-  liveGamesService,
-  type LiveGameState,
-} from "@/services/live-games.service";
-
-function clock(value: number): string {
-  return `${Math.floor(value / 60)
-    .toString()
-    .padStart(2, "0")}:${(value % 60).toString().padStart(2, "0")}`;
-}
+import { formatClock, periodLabel, useLiveGame } from "@/hooks/use-live-game";
 
 /**
  * Center column of the box-score header. Until the scorer puts the game
@@ -35,43 +23,7 @@ export function LiveScoreCenter({
   rowOpponentScore: number | null;
   rowTeamScore: number | null;
 }) {
-  const [state, setState] = useState<LiveGameState | null>(null);
-  const [displayClock, setDisplayClock] = useState(0);
-
-  useEffect(() => {
-    let active = true;
-    void liveGamesService.get(gameId).then(({ state: next }) => {
-      if (active && next) setState(next);
-    });
-    const stream = new EventSource(
-      `${env.apiUrl}/api/v1/live-games/${gameId}/stream`,
-    );
-    const refresh = () =>
-      void liveGamesService.get(gameId).then(({ state: next }) => {
-        if (active && next) setState(next);
-      });
-    stream.addEventListener("state_changed", refresh);
-    // Reconnects (proxy timeout, phone sleep/wake) replay nothing the client
-    // missed while disconnected — resync on every (re)open.
-    stream.onopen = refresh;
-    return () => {
-      active = false;
-      stream.close();
-    };
-  }, [gameId]);
-
-  useEffect(() => {
-    if (!state) return;
-    const update = () => {
-      const elapsed = state.clockRunning
-        ? Math.floor((Date.now() - new Date(state.updatedAt).getTime()) / 1000)
-        : 0;
-      setDisplayClock(Math.max(0, state.clockSeconds - elapsed));
-    };
-    update();
-    const interval = window.setInterval(update, 1000);
-    return () => window.clearInterval(interval);
-  }, [state]);
+  const { displayClock, state } = useLiveGame(gameId);
 
   // The scorer's word wins over the schedule row: an in-progress game
   // shows live, and a scorer-final result shows before the row is updated.
@@ -95,19 +47,19 @@ export function LiveScoreCenter({
   if (isActive && state) {
     return (
       <div aria-live="polite" className="text-center">
-        <p className="flex items-center justify-center gap-1.5 text-[10px] font-bold tracking-[0.14em] text-white/50 uppercase">
+        <p className="flex items-center justify-center gap-1.5 text-[12px] font-bold tracking-[0.12em] text-white/50 uppercase">
           <span
             aria-hidden="true"
             className="size-1.5 animate-pulse rounded-full bg-red-500"
           />
           <span className="text-red-500">
-            {state.status === "HALFTIME" ? "HALFTIME" : "LIVE"} · Q
-            {state.period}
+            {state.status === "HALFTIME" ? "HALFTIME" : "LIVE"} ·{" "}
+            {periodLabel(state.period)}
           </span>
         </p>
         {bigScore(state.teamScore, state.opponentScore)}
         <p className="text-xs text-white/70 tabular-nums">
-          {clock(displayClock)}
+          {formatClock(displayClock)}
         </p>
       </div>
     );
@@ -116,7 +68,7 @@ export function LiveScoreCenter({
   if (scoredFinal) {
     return (
       <div className="text-center">
-        <p className="text-[10px] font-bold tracking-[0.14em] text-white/60 uppercase">
+        <p className="text-[12px] font-bold tracking-[0.12em] text-white/60 uppercase">
           {scoredFinal.teamScore > scoredFinal.opponentScore
             ? "FINAL · WIN"
             : "FINAL · LOSS"}
@@ -129,7 +81,7 @@ export function LiveScoreCenter({
 
   return (
     <div className="text-center">
-      <p className="text-[10px] font-bold tracking-[0.14em] text-white/60 uppercase">
+      <p className="text-[12px] font-bold tracking-[0.12em] text-white/60 uppercase">
         {rowLabel}
       </p>
       <p className="font-display my-2 flex items-center justify-center gap-x-[clamp(64px,10vw,200px)] text-[clamp(36px,8vw,56px)] leading-none font-bold text-white tabular-nums">

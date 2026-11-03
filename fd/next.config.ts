@@ -20,6 +20,9 @@ const nextConfig: NextConfig = {
       { source: "/udirdlaga", destination: "/front-office", permanent: true },
       // /staff merged into the front-office directory page.
       { source: "/staff", destination: "/front-office", permanent: true },
+      // Fan accounts have no features yet — sign-up is closed (admins log
+      // in at /login). Remove this line to reopen registration.
+      { source: "/register", destination: "/login", permanent: false },
     ];
   },
 };

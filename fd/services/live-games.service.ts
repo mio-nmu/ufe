@@ -33,9 +33,12 @@ export const liveGamesService = {
     api.post<{ state: LiveGameState }>(`/api/v1/live-games/${gameId}/ensure`),
   events: (gameId: string) =>
     api.get<{ events: LiveGameEvent[] }>(`/api/v1/live-games/${gameId}/events`),
+  /** The new state plus the history entry it recorded (and, for undo, the
+   *  event it reversed) — the scorer updates its log without a refetch. */
   action: (gameId: string, action: Record<string, unknown>) =>
-    api.post<{ state: LiveGameState }>(
-      `/api/v1/live-games/${gameId}/action`,
-      action,
-    ),
+    api.post<{
+      event: LiveGameEvent;
+      reversedEventId?: string;
+      state: LiveGameState;
+    }>(`/api/v1/live-games/${gameId}/action`, action),
 };

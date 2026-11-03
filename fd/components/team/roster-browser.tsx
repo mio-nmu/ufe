@@ -21,10 +21,6 @@ import {
 import { PlayerCutout } from "@/components/team/player-photo";
 import { cn } from "@/lib/utils";
 
-type ViewMode = "grid" | "table";
-
-type SortKey = "name" | "number" | "position" | "height" | "major";
-
 const COLUMNS: Array<{ key: SortKey; label: string; className?: string }> = [
   { key: "name", label: "Тоглогч" },
   { key: "number", label: "№" },
@@ -37,6 +33,13 @@ const POSITION_ORDER = ["guard", "forward", "center"];
 
 /** One roster page = 15 players (3 rows × 5 columns on desktop). */
 const PAGE_SIZE = 15;
+
+const ROW_GRID =
+  "grid grid-cols-[minmax(48px,64px)_minmax(180px,2.2fr)_minmax(72px,0.8fr)_minmax(96px,0.9fr)_minmax(110px,1.1fr)_minmax(96px,0.9fr)_minmax(88px,0.8fr)] items-center gap-x-4";
+
+type ViewMode = "grid" | "table";
+
+type SortKey = "name" | "number" | "position" | "height" | "major";
 
 /**
  * Editorial roster: players only (the coaching staff lives on /staff),
@@ -73,7 +76,7 @@ export function RosterBrowser({ players }: { players: RosterPlayer[] }) {
             <h2 className="font-display text-ink text-[clamp(26px,3vw,32px)] font-bold tracking-[0.02em] uppercase">
               Тоглогчид
             </h2>
-            <span className="text-mute shrink-0 pb-1 text-[12px] tracking-[0.08em] uppercase">
+            <span className="text-mute shrink-0 pb-1 text-[12px] tracking-[0.06em] uppercase">
               {filtered.length} тоглогч
             </span>
           </div>
@@ -117,7 +120,7 @@ export function RosterBrowser({ players }: { players: RosterPlayer[] }) {
         <div className="border-line border-t pt-6">
           <div key={view} className="view-swap">
             {filtered.length === 0 ? (
-              <p className="text-mute py-16 text-center text-sm tracking-[0.08em] uppercase">
+              <p className="text-mute py-16 text-center text-sm tracking-[0.06em] uppercase">
                 Таарах тоглогч олдсонгүй
               </p>
             ) : view === "grid" ? (
@@ -144,63 +147,6 @@ export function RosterBrowser({ players }: { players: RosterPlayer[] }) {
         </div>
       </div>
     </section>
-  );
-}
-
-/** Bordered page buttons + chevrons; hidden entirely for a single page. */
-function Pagination({
-  page,
-  totalPages,
-  onChange,
-}: {
-  page: number;
-  totalPages: number;
-  onChange: (page: number) => void;
-}) {
-  if (totalPages <= 1) return null;
-  return (
-    <nav
-      className="mt-8 flex flex-wrap items-center justify-center gap-2"
-      aria-label="Хуудаслалт"
-    >
-      <button
-        type="button"
-        onClick={() => onChange(page - 1)}
-        disabled={page === 1}
-        aria-label="Өмнөх хуудас"
-        className="team-focus border-line text-mute hover:border-ink hover:text-ink flex size-10 items-center justify-center border transition-colors disabled:pointer-events-none disabled:opacity-40"
-      >
-        <ChevronLeft className="size-4" aria-hidden="true" />
-      </button>
-      {Array.from({ length: totalPages }, (_, index) => index + 1).map(
-        (item) => (
-          <button
-            key={item}
-            type="button"
-            onClick={() => onChange(item)}
-            aria-label={`Хуудас ${item}`}
-            aria-current={item === page ? "page" : undefined}
-            className={cn(
-              "team-focus font-display flex size-10 items-center justify-center border text-sm font-semibold transition-colors",
-              item === page
-                ? "border-ink bg-ink/5 text-ink"
-                : "border-line text-mute hover:border-ink hover:text-ink",
-            )}
-          >
-            {item}
-          </button>
-        ),
-      )}
-      <button
-        type="button"
-        onClick={() => onChange(page + 1)}
-        disabled={page === totalPages}
-        aria-label="Дараагийн хуудас"
-        className="team-focus border-line text-mute hover:border-ink hover:text-ink flex size-10 items-center justify-center border transition-colors disabled:pointer-events-none disabled:opacity-40"
-      >
-        <ChevronRight className="size-4" aria-hidden="true" />
-      </button>
-    </nav>
   );
 }
 
@@ -231,9 +177,6 @@ function ViewButton({
     </button>
   );
 }
-
-const ROW_GRID =
-  "grid grid-cols-[minmax(48px,64px)_minmax(180px,2.2fr)_minmax(72px,0.8fr)_minmax(96px,0.9fr)_minmax(110px,1.1fr)_minmax(96px,0.9fr)_minmax(88px,0.8fr)] items-center gap-x-4";
 
 /**
  * Flat sortable table: sticky 48px header, 64px zebra rows, expandable.
@@ -294,7 +237,7 @@ function PlayerTable({
             <div
               className={cn(
                 ROW_GRID,
-                "border-line bg-paper sticky top-[72px] z-10 border-b text-[11px] font-semibold tracking-[0.12em] uppercase",
+                "border-line bg-paper sticky top-[72px] z-10 border-b text-[12px] font-semibold tracking-[0.12em] uppercase",
               )}
             >
               {COLUMNS.map((column) => (
@@ -324,7 +267,7 @@ function PlayerTable({
                   ) : null}
                 </button>
               ))}
-              <span className="text-mute px-4 py-3 text-[11px] font-semibold tracking-[0.12em] uppercase">
+              <span className="text-mute px-4 py-3 text-[12px] font-semibold tracking-[0.12em] uppercase">
                 Тоглосон
               </span>
             </div>
@@ -371,7 +314,7 @@ function PlayerTableRow({
           {String(player.number).padStart(2, "0")}
         </span>
         <span className="flex min-w-0 items-center gap-3">
-          <span className="border-line bg-paper size-10 shrink-0 overflow-hidden border">
+          <span className="border-line bg-paper size-10 shrink-0 overflow-hidden rounded-md border">
             <PlayerCutout
               name={player.name}
               number={player.number}
@@ -410,5 +353,62 @@ function PlayerTableRow({
         </div>
       ) : null}
     </div>
+  );
+}
+
+/** Bordered page buttons + chevrons; hidden entirely for a single page. */
+function Pagination({
+  page,
+  totalPages,
+  onChange,
+}: {
+  page: number;
+  totalPages: number;
+  onChange: (page: number) => void;
+}) {
+  if (totalPages <= 1) return null;
+  return (
+    <nav
+      className="mt-8 flex flex-wrap items-center justify-center gap-2"
+      aria-label="Хуудаслалт"
+    >
+      <button
+        type="button"
+        onClick={() => onChange(page - 1)}
+        disabled={page === 1}
+        aria-label="Өмнөх хуудас"
+        className="team-focus border-line text-mute hover:border-ink hover:text-ink flex size-10 items-center justify-center rounded-full border transition-colors disabled:pointer-events-none disabled:opacity-40"
+      >
+        <ChevronLeft className="size-4" aria-hidden="true" />
+      </button>
+      {Array.from({ length: totalPages }, (_, index) => index + 1).map(
+        (item) => (
+          <button
+            key={item}
+            type="button"
+            onClick={() => onChange(item)}
+            aria-label={`Хуудас ${item}`}
+            aria-current={item === page ? "page" : undefined}
+            className={cn(
+              "team-focus font-display flex size-10 items-center justify-center border text-sm font-semibold transition-colors",
+              item === page
+                ? "border-ink bg-ink/5 text-ink"
+                : "border-line text-mute hover:border-ink hover:text-ink",
+            )}
+          >
+            {item}
+          </button>
+        ),
+      )}
+      <button
+        type="button"
+        onClick={() => onChange(page + 1)}
+        disabled={page === totalPages}
+        aria-label="Дараагийн хуудас"
+        className="team-focus border-line text-mute hover:border-ink hover:text-ink flex size-10 items-center justify-center rounded-full border transition-colors disabled:pointer-events-none disabled:opacity-40"
+      >
+        <ChevronRight className="size-4" aria-hidden="true" />
+      </button>
+    </nav>
   );
 }

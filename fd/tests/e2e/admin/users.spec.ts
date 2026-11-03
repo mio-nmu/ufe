@@ -56,27 +56,29 @@ test.describe("admin console", () => {
     const email = await provisionUser("list");
 
     await page.goto("/admin/users");
-    await expect(page.getByRole("heading", { name: "Users" })).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "Хэрэглэгчид" }),
+    ).toBeVisible();
 
-    await page.getByLabel("Search users").fill(email);
-    await page.getByRole("button", { name: "Search" }).click();
+    await page.getByLabel("Хэрэглэгч хайх").fill(email);
+    await page.getByRole("button", { name: "Хайх" }).click();
     await expect(page.getByRole("cell", { name: email })).toBeVisible();
-    await expect(page.getByText(/1 users?/)).toBeVisible();
+    await expect(page.getByText(/1 хэрэглэгч/)).toBeVisible();
   });
 
   test("admin can deactivate and reactivate a user", async ({ page }) => {
     const email = await provisionUser("toggle");
 
     await page.goto("/admin/users");
-    await page.getByLabel("Search users").fill(email);
-    await page.getByRole("button", { name: "Search" }).click();
+    await page.getByLabel("Хэрэглэгч хайх").fill(email);
+    await page.getByRole("button", { name: "Хайх" }).click();
     await expect(page.getByRole("cell", { name: email })).toBeVisible();
 
     const row = page.getByRole("row", { name: new RegExp(email) });
-    await row.getByRole("button", { name: "Deactivate" }).click();
-    await expect(row.getByText("Inactive")).toBeVisible();
+    await row.getByRole("button", { name: "Идэвхгүй болгох" }).click();
+    await expect(row.getByText("Идэвхгүй", { exact: true })).toBeVisible();
 
-    await row.getByRole("button", { name: "Activate" }).click();
-    await expect(row.getByText("Active")).toBeVisible();
+    await row.getByRole("button", { name: "Идэвхжүүлэх" }).click();
+    await expect(row.getByText("Идэвхтэй", { exact: true })).toBeVisible();
   });
 });

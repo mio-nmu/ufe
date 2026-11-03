@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { Loader2, Upload } from "lucide-react";
 import { toast } from "sonner";
@@ -10,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { uploadAdminImage } from "@/lib/admin/media-upload";
+import { revalidatePublicTag } from "@/lib/admin/revalidate";
 import { ApiClientError, api } from "@/lib/api-client";
 
 interface BrandData {
@@ -42,8 +44,9 @@ const DEFAULT_CONTACT: ContactData = {
 };
 
 /**
- * Ерөнхий мэдээлэл — logo + contact info, stored as the `general` page's
- * site-content sections (brand / contact). The form remounts (keyed by the
+ * Ерөнхий мэдээлэл — logo + site name (header & footer) and social links
+ * (footer), stored as the `general` page's site-content sections (brand /
+ * contact). Address, phones and email are edited in «Холбоо барих». The form remounts (keyed by the
  * fetched data) so server values seed it without effects.
  */
 export function GeneralManager() {
@@ -110,6 +113,8 @@ function GeneralForm({
         data,
       });
       toast.success("Хадгалагдлаа");
+      // Header logo / name and footer links are ISR-cached: purge now.
+      void revalidatePublicTag("site-content");
     } catch (err) {
       toast.error(
         err instanceof ApiClientError ? err.message : "Хадгалахад алдаа гарлаа",
@@ -216,59 +221,22 @@ function GeneralForm({
         </Button>
       </section>
 
-      {/* Холбоо барих мэдээлэл */}
+      {/* Сошиал хаяг — address / phones / email live in «Холбоо барих». */}
       <section className="space-y-4 rounded-md border p-5">
-        <h3 className="font-semibold">Холбоо барих мэдээлэл</h3>
+        <div>
+          <h3 className="font-semibold">Сошиал хаяг</h3>
+          <p className="text-muted-foreground mt-1 text-sm">
+            Сайтын хөлд харагдана. Хаяг, утас, имэйлийг{" "}
+            <Link
+              href="/admin/text/contact"
+              className="text-foreground underline underline-offset-4"
+            >
+              Хуудасны текст → Холбоо барих
+            </Link>{" "}
+            хэсгээс засна.
+          </p>
+        </div>
         <div className="grid gap-4 sm:grid-cols-2">
-          <div className="grid gap-1.5">
-            <Label htmlFor="contact-address">Хаяг</Label>
-            <Input
-              id="contact-address"
-              value={contact.address}
-              onChange={(event) =>
-                setContact((p) => ({ ...p, address: event.target.value }))
-              }
-            />
-          </div>
-          <div className="grid gap-1.5">
-            <Label htmlFor="contact-phones">Утаснууд (таслалаар)</Label>
-            <Input
-              id="contact-phones"
-              value={contact.phones.join(", ")}
-              placeholder="77771100, 77737777"
-              onChange={(event) =>
-                setContact((p) => ({
-                  ...p,
-                  phones: event.target.value
-                    .split(",")
-                    .map((part) => part.trim())
-                    .filter(Boolean),
-                }))
-              }
-            />
-          </div>
-          <div className="grid gap-1.5">
-            <Label htmlFor="contact-email">Имэйл</Label>
-            <Input
-              id="contact-email"
-              type="email"
-              value={contact.email}
-              onChange={(event) =>
-                setContact((p) => ({ ...p, email: event.target.value }))
-              }
-            />
-          </div>
-          <div className="grid gap-1.5">
-            <Label htmlFor="contact-web">Вэб</Label>
-            <Input
-              id="contact-web"
-              value={contact.web}
-              placeholder="ufe.edu.mn"
-              onChange={(event) =>
-                setContact((p) => ({ ...p, web: event.target.value }))
-              }
-            />
-          </div>
           <div className="grid gap-1.5">
             <Label htmlFor="contact-facebook">Facebook</Label>
             <Input

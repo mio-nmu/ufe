@@ -2,7 +2,6 @@
 
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/providers/auth-provider";
 
 /** Personalised greeting card fed by the authenticated user + profile query. */
@@ -30,8 +29,4 @@ export function UserAreaGreeting() {
       </CardContent>
     </Card>
   );
-}
-
-export function UserAreaGreetingSkeleton() {
-  return <Skeleton className="h-28 w-full rounded-xl" />;
 }

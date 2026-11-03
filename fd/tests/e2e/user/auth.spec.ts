@@ -34,7 +34,8 @@ async function login(page: import("@playwright/test").Page, email: string) {
 }
 
 test.describe("user auth flow", () => {
-  test("register lands on the dashboard", async ({ page }) => {
+  // Sign-up page closed (next.config.ts redirects /register → /login).
+  test.skip("register lands on the dashboard", async ({ page }) => {
     const email = `e2e-ui-${Date.now()}-${Math.trunc(Math.random() * 1e4)}@ufeedu.test`;
     await page.goto("/register");
 
@@ -51,7 +52,8 @@ test.describe("user auth flow", () => {
     await expect(page.getByText(email)).toBeVisible();
   });
 
-  test("form validation blocks a bad submission client-side", async ({
+  // Sign-up page closed (next.config.ts redirects /register → /login).
+  test.skip("form validation blocks a bad submission client-side", async ({
     page,
   }) => {
     await page.goto("/register");

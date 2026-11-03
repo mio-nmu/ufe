@@ -4,151 +4,8 @@ import { useCallback, useEffect, useState } from "react";
 import Image from "next/image";
 import { ChevronLeft, ChevronRight, X } from "lucide-react";
 
-import { FilterPills } from "@/components/team/filter-pills";
 import type { AlbumImage, MediaAlbumRow } from "@/types/content";
 import { cn } from "@/lib/utils";
-
-/**
- * Photo gallery: category pills, 3-column album grid (392×236 covers with a
- * photo-count chip), a Load more button, and a lightbox — opens with a
- * 240ms scale .96→1, arrow keys + swipe navigation, 72px thumbnail strip.
- */
-
-const PAGE_SIZE = 6;
-
-const CATEGORIES = [
-  { value: "ALL", label: "Бүгд" },
-  { value: "GAMES", label: "Тоглолт" },
-  { value: "COMMUNITY", label: "Нийгмийн" },
-  { value: "EVENTS", label: "Арга хэмжээ" },
-] as const;
-
-type CategoryFilter = (typeof CATEGORIES)[number]["value"];
-
-/** Placeholder frames stand in while an album has no uploaded images yet. */
-function albumFrames(album: MediaAlbumRow): AlbumImage[] {
-  if (album.images.length > 0) return album.images;
-  return Array.from({ length: 8 }, (_, index) => ({
-    caption: `${album.title} — кадр ${index + 1}`,
-    url: "",
-  }));
-}
-
-export function PhotosGallery({ albums }: { albums: MediaAlbumRow[] }) {
-  const [category, setCategory] = useState<CategoryFilter>("ALL");
-  const [visible, setVisible] = useState(PAGE_SIZE);
-  const [openAlbum, setOpenAlbum] = useState<MediaAlbumRow | null>(null);
-
-  const filtered = albums.filter(
-    (album) => category === "ALL" || album.category === category,
-  );
-  const shown = filtered.slice(0, visible);
-
-  return (
-    <div className="team-shell pb-16 md:pb-20">
-      <FilterPills
-        className="mt-6"
-        label="Ангилал"
-        options={CATEGORIES.filter((option) =>
-          option.value === "ALL"
-            ? true
-            : albums.some((album) => album.category === option.value),
-        )}
-        value={category}
-        onChange={(value) => {
-          setCategory(value);
-          setVisible(PAGE_SIZE);
-        }}
-      />
-
-      <div
-        key={category}
-        className="view-swap mt-8 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3"
-      >
-        {shown.map((album) => (
-          <AlbumCard
-            key={album.id}
-            album={album}
-            onOpen={() => setOpenAlbum(album)}
-          />
-        ))}
-      </div>
-
-      {visible < filtered.length ? (
-        <div className="mt-6 text-center">
-          <button
-            type="button"
-            onClick={() => setVisible((count) => count + PAGE_SIZE)}
-            className="font-display team-focus hover:bg-ink/5 border-ink text-ink inline-flex h-12 items-center rounded-full border px-8 text-sm font-semibold tracking-[0.06em] uppercase transition-colors"
-          >
-            Дэлгэрэнгүй ачаалах
-          </button>
-        </div>
-      ) : null}
-
-      {openAlbum ? (
-        <Lightbox album={openAlbum} onClose={() => setOpenAlbum(null)} />
-      ) : null}
-    </div>
-  );
-}
-
-function AlbumCard({
-  album,
-  onOpen,
-}: {
-  album: MediaAlbumRow;
-  onOpen: () => void;
-}) {
-  const count = album.images.length > 0 ? album.images.length : 8;
-  const date = album.eventDate
-    ? new Intl.DateTimeFormat("en-GB", {
-        day: "numeric",
-        month: "short",
-        year: "numeric",
-      })
-        .format(new Date(album.eventDate))
-        .toUpperCase()
-    : "";
-
-  return (
-    <article>
-      <button
-        type="button"
-        onClick={onOpen}
-        aria-label={`${album.title} галерей нээх`}
-        className="team-focus block w-full text-left"
-      >
-        <div className="bg-paper-soft border-line relative aspect-[392/236] overflow-hidden border">
-          {album.coverImage ? (
-            <Image
-              src={album.coverImage}
-              alt=""
-              fill
-              sizes="(min-width: 1024px) 30vw, (min-width: 640px) 45vw, 90vw"
-              className="object-cover"
-            />
-          ) : (
-            <span className="font-display text-mute/40 flex h-full items-center justify-center text-sm tracking-[0.12em] uppercase">
-              {album.title}
-            </span>
-          )}
-          <span className="bg-ink text-paper absolute right-2 bottom-2 px-2 py-0.5 text-[11px] font-semibold tracking-[0.06em]">
-            {count} фото
-          </span>
-        </div>
-        {date ? (
-          <span className="text-mute mt-3 block text-[12px] font-semibold tracking-[0.12em] uppercase">
-            {date}
-          </span>
-        ) : null}
-        <h3 className="font-display text-ink mt-1 text-[24px] leading-tight font-bold tracking-[0.02em] uppercase">
-          {album.title}
-        </h3>
-      </button>
-    </article>
-  );
-}
 
 /** Lightbox: ink backdrop, counter, actions, main frame, thumb strip.
  *  Exported for reuse by the combined media board. */
@@ -217,7 +74,7 @@ export function Lightbox({
       role="dialog"
       aria-modal="true"
       aria-label={album ? `${album.title} галерей` : "Галерей"}
-      className="fixed inset-0 z-50 flex flex-col bg-[#0B0B0C]/95"
+      className="bg-ink/95 fixed inset-0 z-50 flex flex-col"
     >
       {/* Top bar: counter + actions */}
       <div className="flex items-center justify-between px-6 py-4 text-white">
@@ -310,7 +167,7 @@ export function Lightbox({
               aria-label={`Зураг ${i + 1}`}
               tabIndex={i === index ? 0 : -1}
               className={cn(
-                "h-14 w-[72px] shrink-0 overflow-hidden border transition-opacity",
+                "h-14 w-[72px] shrink-0 overflow-hidden rounded-md border transition-opacity",
                 i === index
                   ? "border-white opacity-100"
                   : "border-transparent opacity-50",
@@ -333,4 +190,13 @@ export function Lightbox({
       </div>
     </div>
   );
+}
+
+/** Placeholder frames stand in while an album has no uploaded images yet. */
+function albumFrames(album: MediaAlbumRow): AlbumImage[] {
+  if (album.images.length > 0) return album.images;
+  return Array.from({ length: 8 }, (_, index) => ({
+    caption: `${album.title} — кадр ${index + 1}`,
+    url: "",
+  }));
 }

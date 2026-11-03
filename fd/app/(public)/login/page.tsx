@@ -36,23 +36,15 @@ export default function LoginPage() {
           aria-hidden="true"
         />
         <p className="font-display absolute inset-0 flex items-center justify-center text-[clamp(28px,3.5vw,48px)] font-bold tracking-[0.02em] text-white uppercase">
-          UFE BASKETBALL
+          СЭЗИС Сагсан бөмбөг
         </p>
-        <Image
-          src="/ufe-logo.png"
-          alt="UFE Broncos"
-          width={64}
-          height={64}
-          className="absolute top-6 left-6 size-16 sm:top-10 sm:left-10"
-        />
       </FadeIn>
 
       {/* Form panel */}
       <div className="bg-paper flex items-center justify-center px-4 py-12 sm:px-10 lg:py-14">
-        <h1 className="sr-only">Нэвтрэх</h1>
         <Suspense
           fallback={
-            <Skeleton className="h-[420px] w-full max-w-sm rounded-none" />
+            <Skeleton className="h-[420px] w-full max-w-sm rounded-lg" />
           }
         >
           <FadeIn delay={0.05} className="w-full max-w-sm">

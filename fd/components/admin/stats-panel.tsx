@@ -17,42 +17,6 @@ import { useAdminStats } from "@/hooks/use-admin";
 import { ApiClientError } from "@/lib/api-client";
 import type { AdminStats } from "@/types/api";
 
-function StatCard({
-  label,
-  value,
-  icon: Icon,
-}: {
-  label: string;
-  value: number;
-  icon: typeof UserRound;
-}) {
-  return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between">
-        <CardTitle className="text-sm font-medium">{label}</CardTitle>
-        <Icon className="text-muted-foreground size-4" aria-hidden="true" />
-      </CardHeader>
-      <CardContent>
-        <p className="text-3xl font-semibold tabular-nums">{value}</p>
-      </CardContent>
-    </Card>
-  );
-}
-
-function StatsSkeleton() {
-  return (
-    <div
-      className="grid gap-4 sm:grid-cols-3"
-      aria-busy="true"
-      aria-label="Loading statistics"
-    >
-      {Array.from({ length: 3 }).map((_, index) => (
-        <Skeleton key={index} className="h-29 w-full rounded-xl" />
-      ))}
-    </div>
-  );
-}
-
 /** Client panel: owns the useAdminStats query + stat cards and chart. */
 export function AdminStatsPanel() {
   const { data, isPending, isError, error, refetch } = useAdminStats();
@@ -115,5 +79,41 @@ export function AdminStatsPanel() {
         </>
       ) : null}
     </>
+  );
+}
+
+function StatCard({
+  label,
+  value,
+  icon: Icon,
+}: {
+  label: string;
+  value: number;
+  icon: typeof UserRound;
+}) {
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between">
+        <CardTitle className="text-sm font-medium">{label}</CardTitle>
+        <Icon className="text-muted-foreground size-4" aria-hidden="true" />
+      </CardHeader>
+      <CardContent>
+        <p className="text-3xl font-semibold tabular-nums">{value}</p>
+      </CardContent>
+    </Card>
+  );
+}
+
+function StatsSkeleton() {
+  return (
+    <div
+      className="grid gap-4 sm:grid-cols-3"
+      aria-busy="true"
+      aria-label="Loading statistics"
+    >
+      {Array.from({ length: 3 }).map((_, index) => (
+        <Skeleton key={index} className="h-29 w-full rounded-xl" />
+      ))}
+    </div>
   );
 }

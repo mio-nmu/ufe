@@ -29,8 +29,6 @@ export const ALLOWED_TAGS = [
   "history-photos",
   "videos",
   "shop",
-  "standings",
-  "partners",
 ] as const;
 
 export type AllowedTag = (typeof ALLOWED_TAGS)[number];
@@ -41,8 +39,8 @@ export function isAllowedTag(tag: string): tag is AllowedTag {
 
 /**
  * Admin REST endpoint base (without /api/v1) → public cache tag, for the
- * generic collection manager's post-save purge. Collections with no public
- * face (orders) return null — nothing to purge.
+ * generic collection manager's post-save purge. Endpoints with no public
+ * face return null — nothing to purge.
  */
 export function tagForEndpoint(endpoint: string): AllowedTag | null {
   const map: Record<string, AllowedTag> = {

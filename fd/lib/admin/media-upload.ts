@@ -29,14 +29,13 @@ export interface UploadedAdminImage {
   url: string;
 }
 
-/** "File size too large. Got 11936151. Maximum is 10485760." → MB, readable. */
-function providerSizeMessage(message: string): string | null {
-  if (!/file size too large/i.test(message)) return null;
-  const match = /Maximum is (\d+)/u.exec(message);
-  const limitMb = match ? Math.round(Number(match[1]) / 1024 / 1024) : null;
-  return limitMb
-    ? `Image is above the storage plan's ${limitMb} MB per-image limit — resize it before uploading.`
-    : "Image is above the storage plan's per-image size limit — resize it before uploading.";
+/** Uploads an image and returns its persisted media URL. */
+export async function uploadAdminImage(
+  file: File,
+  alt: string,
+): Promise<string> {
+  const { url } = await uploadAdminImageDetailed(file, alt);
+  return url;
 }
 
 /** Uploads an image and returns its persisted media-library row. */
@@ -86,11 +85,12 @@ export async function uploadAdminImageDetailed(
   return { publicId: media.publicId, url: media.url };
 }
 
-/** Uploads an image and returns its persisted media URL. */
-export async function uploadAdminImage(
-  file: File,
-  alt: string,
-): Promise<string> {
-  const { url } = await uploadAdminImageDetailed(file, alt);
-  return url;
+/** "File size too large. Got 11936151. Maximum is 10485760." → MB, readable. */
+function providerSizeMessage(message: string): string | null {
+  if (!/file size too large/i.test(message)) return null;
+  const match = /Maximum is (\d+)/u.exec(message);
+  const limitMb = match ? Math.round(Number(match[1]) / 1024 / 1024) : null;
+  return limitMb
+    ? `Image is above the storage plan's ${limitMb} MB per-image limit — resize it before uploading.`
+    : "Image is above the storage plan's per-image size limit — resize it before uploading.";
 }

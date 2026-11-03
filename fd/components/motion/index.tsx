@@ -37,32 +37,6 @@ export function FadeIn({
   );
 }
 
-export function SlideIn({
-  children,
-  delay = 0,
-  className,
-}: {
-  children: ReactNode;
-  delay?: number;
-  className?: string;
-}) {
-  const reduceMotion = useReducedMotion();
-  return (
-    <motion.div
-      className={className}
-      initial={false}
-      animate={{ opacity: 1, x: 0 }}
-      transition={{
-        duration: reduceMotion ? 0 : 0.3,
-        delay: reduceMotion ? 0 : delay,
-        ease: EASE_OUT,
-      }}
-    >
-      {children}
-    </motion.div>
-  );
-}
-
 export function Stagger({
   children,
   className,

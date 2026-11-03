@@ -148,7 +148,7 @@ export const timeline: TimelineEntry[] = [
 // ── Тоглогчид хуудас ────────────────────────────────────────────────────────
 
 export const players = {
-  title: "Roster",
+  title: "Тоглогчид",
   subtitle: "2026–2027 оны багийн бүрэлдэхүүн",
 } as const;
 
@@ -358,3 +358,43 @@ export const contact = {
   webUrl: "https://ufe.edu.mn",
   slogan: "Эрхэм баян эрдэм",
 } as const;
+
+/** Home-page «Түүхэн мөчүүд» strip — default copy, editable in the admin
+ *  (page «home», section «timeline»). `medal`: gold | silver | bronze | "". */
+export const homeTimeline = {
+  eyebrow: "1992 — Өнөөдрийг хүртэл",
+  title: "Түүхэн мөчүүд",
+  cta: "Цаг хугацааны тууз",
+  items: [
+    {
+      period: "1992",
+      description: "Их, дээд сургуулийн аварга.",
+      medal: "gold",
+    },
+    {
+      period: "1997–2006",
+      description: "Оюутны лигийн 3 мөнгөн медаль.",
+      medal: "silver",
+    },
+    {
+      period: "2017–2018",
+      description: "Хотын аваргын мөнгө · Elite 8.",
+      medal: "",
+    },
+    {
+      period: "2021–2022",
+      description: "Final 4 · Баруун бүсийн тэргүүн.",
+      medal: "",
+    },
+    {
+      period: "2024–2025",
+      description: "Оюутны лигийн хүрэл медаль.",
+      medal: "bronze",
+    },
+    {
+      period: "2025–2026",
+      description: "Оюутны лигийн анхны аварга.",
+      medal: "gold",
+    },
+  ],
+};

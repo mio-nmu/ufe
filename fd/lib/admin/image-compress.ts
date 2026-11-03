@@ -18,28 +18,6 @@ const MAX_EDGE = 2400;
 const JPEG_QUALITY = 0.85;
 const WEBP_QUALITY = 0.9;
 
-/** Pure dimension math, split out for unit tests. */
-export function targetDimensions(
-  width: number,
-  height: number,
-  maxEdge: number,
-): { height: number; width: number } {
-  const scale = Math.min(1, maxEdge / Math.max(width, height));
-  return {
-    height: Math.max(1, Math.round(height * scale)),
-    width: Math.max(1, Math.round(width * scale)),
-  };
-}
-
-/** True when the file would trip the provider's per-image size cap. */
-export function needsCompression(file: File): boolean {
-  // Animated GIFs must pass through untouched — canvas re-encoding would
-  // freeze them to a single frame. Over-limit GIFs surface the provider's
-  // own (mapped) size error instead.
-  if (file.type === "image/gif") return false;
-  return file.size > PROVIDER_IMAGE_LIMIT_BYTES;
-}
-
 /**
  * Returns `file` unchanged when it is within the plan limit (or cannot be
  * safely processed); otherwise a re-encoded, smaller File with an updated
@@ -90,4 +68,26 @@ export async function compressForUpload(file: File): Promise<File> {
   } finally {
     bitmap.close();
   }
+}
+
+/** True when the file would trip the provider's per-image size cap. */
+export function needsCompression(file: File): boolean {
+  // Animated GIFs must pass through untouched — canvas re-encoding would
+  // freeze them to a single frame. Over-limit GIFs surface the provider's
+  // own (mapped) size error instead.
+  if (file.type === "image/gif") return false;
+  return file.size > PROVIDER_IMAGE_LIMIT_BYTES;
+}
+
+/** Pure dimension math, split out for unit tests. */
+export function targetDimensions(
+  width: number,
+  height: number,
+  maxEdge: number,
+): { height: number; width: number } {
+  const scale = Math.min(1, maxEdge / Math.max(width, height));
+  return {
+    height: Math.max(1, Math.round(height * scale)),
+    width: Math.max(1, Math.round(width * scale)),
+  };
 }

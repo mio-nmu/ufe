@@ -4,12 +4,12 @@ import { z } from "zod";
  * Frontend mirror of bd/src/validators — same rules in spirit so users get
  * instant feedback and the server remains the source of truth.
  */
-export const emailField = z
+const emailField = z
   .string()
   .min(1, "Имэйл хаяг заавал шаардлагатай")
   .email("Зөв имэйл хаяг оруулна уу");
 
-export const passwordField = z
+const passwordField = z
   .string()
   .min(8, "Нууц үг дор хаяж 8 тэмдэгт байх ёстой")
   .max(72, "Нууц үг хамгийн ихдээ 72 тэмдэгт байна");

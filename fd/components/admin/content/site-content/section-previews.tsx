@@ -46,8 +46,8 @@ export function SectionPreview({
   return (
     // Editorial preview frame: hairline border + the hero card's offset
     // shadow, so the "live site artifact" reads like the public site.
-    <div className="border-line bg-paper border shadow-[8px_8px_0_#E6E6E3]">
-      <div className="border-line bg-paper-soft text-mute flex items-center gap-1.5 border-b px-3 py-2 text-[11px] font-semibold tracking-[0.12em] uppercase">
+    <div className="border-line bg-paper border shadow-[8px_8px_0_var(--line)]">
+      <div className="border-line bg-paper-soft text-mute flex items-center gap-1.5 border-b px-3 py-2 text-[12px] font-semibold tracking-[0.12em] uppercase">
         <Eye className="size-3.5" aria-hidden="true" />
         Шууд харагдац
       </div>
@@ -92,11 +92,7 @@ function PreviewBody({
             </h2>
             <span className="eyebrow">Бүх мэдээ</span>
           </div>
-          <NewsGrid
-            items={support.newsItems}
-            label={meta.label}
-            latestGame={null}
-          />
+          <NewsGrid items={support.newsItems} latestGame={null} />
         </section>
       );
     }
@@ -109,7 +105,7 @@ function PreviewBody({
         .filter((item) => item.value || item.label);
       return (
         <section className="border-line bg-paper-soft border-y">
-          <div className="team-shell grid grid-cols-2 gap-y-8 py-10 md:grid-cols-4">
+          <div className="team-shell grid grid-cols-2 gap-y-8 py-12 md:grid-cols-4 md:py-16">
             {items.map((item) => (
               <div key={`${item.label}-${item.value}`} className="md:pl-6">
                 <p className="font-display text-ink text-[clamp(28px,4vw,44px)] leading-none font-bold tracking-[0.02em]">
@@ -198,7 +194,17 @@ function PreviewBody({
         />
       );
     case "contact/info":
-      return <SiteFooter info={contactInfo(data)} />;
+      return (
+        <SiteFooter
+          info={contactInfo(data)}
+          brand={{
+            facebook: null,
+            instagram: null,
+            logo: null,
+            siteName: null,
+          }}
+        />
+      );
     default:
       if (def.preview) {
         return (
@@ -211,27 +217,6 @@ function PreviewBody({
       }
       return null;
   }
-}
-
-// ── Preview normalization (mirrors the public page routes) ───────────────────
-
-function str(value: unknown, fallback: string): string {
-  return typeof value === "string" && value ? value : fallback;
-}
-
-function strArray(value: unknown, fallback: string[]): string[] {
-  return Array.isArray(value) && value.every((item) => typeof item === "string")
-    ? (value as string[])
-    : fallback;
-}
-
-function toArray(value: unknown): Record<string, unknown>[] {
-  return Array.isArray(value)
-    ? value.filter(
-        (item): item is Record<string, unknown> =>
-          typeof item === "object" && item !== null && !Array.isArray(item),
-      )
-    : [];
 }
 
 function timelineEntries(data: Record<string, unknown>): TimelineEntry[] {
@@ -257,10 +242,17 @@ function fanClubContent(data: Record<string, unknown>): FanClubContent {
   return {
     cta: str(data.cta, fanClubFallback.cta),
     heroImage: str(data.heroImage, ""),
+    orderEmail: contact.email,
     promos: strArray(data.promos, [...fanClubFallback.promos]),
     subtitle: str(data.subtitle, fanClubFallback.subtitle),
     title: str(data.title, fanClubFallback.title),
   };
+}
+
+function strArray(value: unknown, fallback: string[]): string[] {
+  return Array.isArray(value) && value.every((item) => typeof item === "string")
+    ? (value as string[])
+    : fallback;
 }
 
 function contactInfo(data: Record<string, unknown>): ContactInfo {
@@ -291,4 +283,19 @@ function contactInfo(data: Record<string, unknown>): ContactInfo {
     }
   }
   return picked;
+}
+
+function toArray(value: unknown): Record<string, unknown>[] {
+  return Array.isArray(value)
+    ? value.filter(
+        (item): item is Record<string, unknown> =>
+          typeof item === "object" && item !== null && !Array.isArray(item),
+      )
+    : [];
+}
+
+// ── Preview normalization (mirrors the public page routes) ───────────────────
+
+function str(value: unknown, fallback: string): string {
+  return typeof value === "string" && value ? value : fallback;
 }

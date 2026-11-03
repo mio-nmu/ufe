@@ -13,6 +13,16 @@ import {
 import { probeImage, youTubeThumbUrl } from "@/lib/youtube";
 import { cn } from "@/lib/utils";
 
+const PLAYER_STATE = {
+  ENDED: 0,
+  PLAYING: 1,
+  PAUSED: 2,
+  BUFFERING: 3,
+  CUED: 5,
+} as const;
+
+let apiPromise: Promise<YouTubeNamespace> | null = null;
+
 /**
  * Brand-free YouTube surface.
  *
@@ -60,47 +70,6 @@ declare global {
     YT?: YouTubeNamespace;
     onYouTubeIframeAPIReady?: () => void;
   }
-}
-
-const PLAYER_STATE = {
-  ENDED: 0,
-  PLAYING: 1,
-  PAUSED: 2,
-  BUFFERING: 3,
-  CUED: 5,
-} as const;
-
-let apiPromise: Promise<YouTubeNamespace> | null = null;
-
-/** Loads the IFrame API once per page; concurrent callers share the promise. */
-function loadYouTubeApi(): Promise<YouTubeNamespace> {
-  if (typeof window === "undefined") {
-    return Promise.reject(new Error("YouTube API requires a browser"));
-  }
-  if (window.YT?.Player) return Promise.resolve(window.YT);
-  if (!apiPromise) {
-    apiPromise = new Promise((resolve) => {
-      const previous = window.onYouTubeIframeAPIReady;
-      window.onYouTubeIframeAPIReady = () => {
-        previous?.();
-        if (window.YT) resolve(window.YT);
-      };
-      if (!document.getElementById("youtube-iframe-api")) {
-        const script = document.createElement("script");
-        script.id = "youtube-iframe-api";
-        script.src = "https://www.youtube.com/iframe_api";
-        document.head.appendChild(script);
-      }
-    });
-  }
-  return apiPromise;
-}
-
-function formatTime(seconds: number): string {
-  if (!Number.isFinite(seconds) || seconds < 0) seconds = 0;
-  const m = Math.floor(seconds / 60);
-  const s = Math.floor(seconds % 60);
-  return `${m}:${String(s).padStart(2, "0")}`;
 }
 
 // ── Component ───────────────────────────────────────────────────────────────
@@ -281,7 +250,7 @@ export function YouTubeFrame({
           <span className="absolute inset-0 flex items-center justify-center">
             <span className="bg-paper text-ink team-focus flex size-16 items-center justify-center rounded-full transition-transform group-hover:scale-105 sm:size-18">
               {failed ? (
-                <span className="px-3 text-center text-[10px] font-semibold tracking-[0.1em] uppercase">
+                <span className="px-3 text-center text-[12px] font-semibold tracking-[0.12em] uppercase">
                   Алдаа
                 </span>
               ) : (
@@ -385,4 +354,35 @@ export function YouTubeFrame({
       )}
     </div>
   );
+}
+
+/** Loads the IFrame API once per page; concurrent callers share the promise. */
+function loadYouTubeApi(): Promise<YouTubeNamespace> {
+  if (typeof window === "undefined") {
+    return Promise.reject(new Error("YouTube API requires a browser"));
+  }
+  if (window.YT?.Player) return Promise.resolve(window.YT);
+  if (!apiPromise) {
+    apiPromise = new Promise((resolve) => {
+      const previous = window.onYouTubeIframeAPIReady;
+      window.onYouTubeIframeAPIReady = () => {
+        previous?.();
+        if (window.YT) resolve(window.YT);
+      };
+      if (!document.getElementById("youtube-iframe-api")) {
+        const script = document.createElement("script");
+        script.id = "youtube-iframe-api";
+        script.src = "https://www.youtube.com/iframe_api";
+        document.head.appendChild(script);
+      }
+    });
+  }
+  return apiPromise;
+}
+
+function formatTime(seconds: number): string {
+  if (!Number.isFinite(seconds) || seconds < 0) seconds = 0;
+  const m = Math.floor(seconds / 60);
+  const s = Math.floor(seconds % 60);
+  return `${m}:${String(s).padStart(2, "0")}`;
 }

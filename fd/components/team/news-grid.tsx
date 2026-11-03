@@ -5,168 +5,172 @@ import { ArrowRight } from "lucide-react";
 import { routes } from "@/config/routes";
 import type { GameRow } from "@/types/content";
 
+const dateFormat = new Intl.DateTimeFormat("mn-MN", {
+  day: "numeric",
+  month: "long",
+  year: "numeric",
+  timeZone: "Asia/Ulaanbaatar",
+});
+
 /** One story card in the grid (from bd/ NewsPost rows or the static fallback). */
 export interface NewsItem {
   kicker: string;
   title: string;
   body: string;
-}
-
-function formatGameDate(value: string) {
-  return new Intl.DateTimeFormat("mn-MN", {
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-    timeZone: "Asia/Ulaanbaatar",
-  }).format(new Date(value));
+  /** Article link target — absent for the static fallback stories. */
+  slug?: string;
+  image?: string | null;
+  publishedAt?: string;
 }
 
 /**
- * 12-column news grid: the featured card (8 cols, ink panel) surfaces the
- * latest finished game with its score, and a stack of compact story cards
- * from the NewsPost collection fills the remaining 4 columns (static
- * fallback when the API is empty/unreachable).
+ * 12-column news grid: the top story (featured first, then newest) fills 8
+ * columns with its cover image; the next two stories and a latest-result
+ * card (schedule link when no game has finished) stack in the other 4.
  */
 export function NewsGrid({
-  label,
   items,
   latestGame,
 }: {
-  label: string;
   items: NewsItem[];
   latestGame: GameRow | null;
 }) {
-  const [, ...rest] = items;
+  const [lead, ...rest] = items;
   const opponent = latestGame?.opponentShort ?? latestGame?.opponent;
-  const result =
-    latestGame &&
+  const hasScore =
+    latestGame !== null &&
     latestGame.teamScore !== null &&
-    latestGame.opponentScore !== null
-      ? latestGame.teamScore > latestGame.opponentScore
+    latestGame.opponentScore !== null;
+  const result =
+    hasScore && latestGame
+      ? latestGame.teamScore! > latestGame.opponentScore!
         ? "Ялалт"
-        : latestGame.teamScore < latestGame.opponentScore
+        : latestGame.teamScore! < latestGame.opponentScore!
           ? "Хожигдол"
           : "Тэнцээ"
       : null;
 
   return (
     <div className="grid gap-6 md:grid-cols-12">
-      {latestGame ? (
-        <article className="bg-ink card-lift relative flex min-h-[420px] flex-col justify-end overflow-hidden p-8 text-white md:col-span-8 md:min-h-[480px]">
+      {lead ? (
+        <StoryLink
+          item={lead}
+          className="group bg-ink card-lift relative flex min-h-[420px] flex-col justify-end overflow-hidden rounded-lg p-8 text-white md:col-span-8 md:min-h-[480px]"
+        >
           <Image
-            src="/season-welcome.png"
-            alt="СЭЗИС Broncos багийн нийт зураг"
+            src={lead.image || "/season-welcome.png"}
+            alt=""
             fill
             sizes="(min-width: 768px) 66vw, 100vw"
-            className="object-cover object-center"
+            className="object-cover object-center transition-transform duration-300 group-hover:scale-[1.03]"
           />
           <div
             aria-hidden="true"
-            className="absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-[#05070b]/25 to-transparent"
+            className="from-ink/90 via-ink/45 absolute inset-x-0 bottom-0 h-3/4 bg-gradient-to-t to-transparent"
           />
-          <span
-            aria-hidden="true"
-            className="font-display pointer-events-none absolute top-2 right-4 z-10 text-[150px] leading-[0.8] font-bold text-transparent select-none [-webkit-text-stroke:2px_rgba(255,255,255,0.16)]"
-          >
-            01
-          </span>
-          <div className="relative z-10">
-            <p className="text-[12px] font-semibold tracking-[0.12em] text-white/60 uppercase">
-              {latestGame.competition}
+          <div className="relative z-10 max-w-[560px]">
+            <p className="text-[12px] font-semibold tracking-[0.12em] text-white/70 uppercase">
+              {lead.kicker}
+              {lead.publishedAt ? ` · ${formatDate(lead.publishedAt)}` : ""}
             </p>
-            <h3 className="font-display mt-3 max-w-[520px] text-[clamp(26px,3.4vw,36px)] leading-[1.05] font-bold tracking-[0.02em] uppercase">
-              Сүүлийн тоглолт
+            <h3 className="font-display mt-3 text-[clamp(26px,3.4vw,40px)] leading-[1.05] font-bold tracking-[0.02em] uppercase">
+              {lead.title}
             </h3>
-            <div className="mt-5 flex flex-wrap items-center gap-x-4 gap-y-2">
-              <span className="font-display text-[clamp(36px,5vw,56px)] leading-none font-bold tabular-nums">
-                {latestGame.teamScore ?? "—"}
-                <span className="mx-3 text-white/35">—</span>
-                {latestGame.opponentScore ?? "—"}
-              </span>
-              <span className="text-[13px] font-semibold tracking-[0.1em] text-white/65 uppercase">
-                СЭЗИС · {opponent}
-              </span>
-            </div>
-            <p className="mt-4 max-w-[520px] text-[14px] leading-[1.6] text-white/70">
-              {result ? `${result} · ` : ""}
-              {latestGame.round ? `${latestGame.round} · ` : ""}
-              {formatGameDate(latestGame.tipsAt)}
+            <p className="mt-3 line-clamp-2 text-[15px] leading-[1.6] text-white/80">
+              {lead.body}
             </p>
+            {lead.slug && (
+              <span className="mt-5 inline-flex items-center gap-2 text-[13px] font-semibold tracking-[0.06em] uppercase">
+                Унших
+                <ArrowRight
+                  className="size-4 transition-transform group-hover:translate-x-0.5"
+                  aria-hidden="true"
+                />
+              </span>
+            )}
           </div>
-        </article>
-      ) : (
-        <article className="bg-ink relative flex min-h-[280px] flex-col justify-end overflow-hidden p-8 text-white md:col-span-8">
-          <Image
-            src="/season-welcome.png"
-            alt="СЭЗИС Broncos багийн нийт зураг"
-            fill
-            sizes="(min-width: 768px) 66vw, 100vw"
-            className="object-cover object-center"
-          />
-          <div className="relative z-10">
-            <p className="text-[12px] font-semibold tracking-[0.12em] text-white/60 uppercase">
-              {label}
-            </p>
-            <h3 className="font-display mt-3 text-[clamp(26px,3.4vw,36px)] leading-[1.05] font-bold uppercase">
-              2026–2027 оны улиралд тавтай морил
-            </h3>
-          </div>
-        </article>
-      )}
+        </StoryLink>
+      ) : null}
 
       <div className="flex flex-col gap-6 md:col-span-4">
-        {rest.map((item, index) => (
-          <div key={item.title} className="group relative">
-            <span
-              aria-hidden="true"
-              className="bg-brand pointer-events-none absolute inset-0 translate-x-2 translate-y-2 opacity-0 transition-opacity duration-300 group-hover:opacity-100"
-            />
-            <article className="border-line card-lift relative z-10 flex gap-4 border bg-white p-5">
-              <span
-                aria-hidden="true"
-                className="font-display pointer-events-none w-14 shrink-0 text-[64px] leading-none font-bold text-[#05070b]/20 select-none"
-              >
-                {String(index + 2).padStart(2, "0")}
-              </span>
-              <div className="min-w-0">
-                <p className="eyebrow text-[#05070b]/65">{item.kicker}</p>
-                <h3 className="font-display mt-1.5 text-[22px] leading-[1.1] font-semibold tracking-[0.02em] text-[#05070b] uppercase">
-                  {item.title}
-                </h3>
-                <p className="mt-2 line-clamp-3 text-[13px] leading-[1.6] text-[#05070b]/65">
-                  {item.body}
-                </p>
-              </div>
-            </article>
-          </div>
+        {rest.slice(0, 2).map((item) => (
+          <StoryLink
+            key={item.slug ?? item.title}
+            item={item}
+            className="border-line bg-paper card-lift relative flex rounded-lg border p-5"
+          >
+            <div className="min-w-0">
+              <p className="eyebrow text-ink/65">{item.kicker}</p>
+              <h3 className="font-display text-ink mt-1.5 text-[22px] leading-[1.1] font-semibold tracking-[0.02em] uppercase">
+                {item.title}
+              </h3>
+              <p className="text-ink/65 mt-2 line-clamp-3 text-[13px] leading-[1.6]">
+                {item.body}
+              </p>
+            </div>
+          </StoryLink>
         ))}
 
-        {/* Schedule link completes the news stack */}
-        <div className="group relative">
-          <span
-            aria-hidden="true"
-            className="bg-brand pointer-events-none absolute inset-0 translate-x-2 translate-y-2 opacity-0 transition-opacity duration-300 group-hover:opacity-100"
-          />
+        {latestGame && hasScore ? (
           <Link
-            href={routes.site.schedule}
-            className="border-line relative z-10 flex min-h-24 flex-col justify-center gap-1 border bg-white p-5"
+            href={routes.site.game(latestGame.id)}
+            className="team-focus group border-line bg-paper card-lift flex flex-col gap-1 rounded-lg border p-5"
           >
-            <p className="eyebrow text-[#05070b]/65">Тоглолтууд</p>
-            <p className="font-display flex items-center gap-2 text-[22px] leading-none font-semibold tracking-[0.02em] text-[#05070b] uppercase">
-              Хуваарь харах
+            <p className="eyebrow text-ink/65">Сүүлийн тоглолт</p>
+            <p className="font-display text-ink text-[28px] leading-none font-bold tabular-nums">
+              {latestGame.teamScore} – {latestGame.opponentScore}
+            </p>
+            <p className="text-ink/65 flex items-center gap-2 text-[13px]">
+              {result} · СЭЗИС vs {opponent} · {formatDate(latestGame.tipsAt)}
               <ArrowRight
-                className="size-5 transition-transform group-hover:translate-x-1"
+                className="size-4 transition-transform group-hover:translate-x-0.5"
                 aria-hidden="true"
               />
             </p>
-            <p className="text-[13px] text-[#05070b]/65">
-              {latestGame
-                ? `Сүүлийн тоглолт · ${formatGameDate(latestGame.tipsAt)}`
-                : "Шинэ тоглолтууд"}
-            </p>
           </Link>
-        </div>
+        ) : (
+          <Link
+            href={routes.site.schedule}
+            className="team-focus group border-line bg-paper card-lift flex min-h-24 flex-col justify-center gap-1 rounded-lg border p-5"
+          >
+            <p className="eyebrow text-ink/65">Тоглолтууд</p>
+            <p className="font-display text-ink flex items-center gap-2 text-[22px] leading-none font-semibold tracking-[0.02em] uppercase">
+              Хуваарь харах
+              <ArrowRight
+                className="size-5 transition-transform group-hover:translate-x-0.5"
+                aria-hidden="true"
+              />
+            </p>
+            <p className="text-ink/65 text-[13px]">Шинэ тоглолтууд</p>
+          </Link>
+        )}
       </div>
     </div>
   );
+}
+
+/** Wraps a card in an article link when the story has one. */
+function StoryLink({
+  item,
+  className,
+  children,
+}: {
+  item: NewsItem;
+  className: string;
+  children: React.ReactNode;
+}) {
+  return item.slug ? (
+    <Link
+      href={routes.site.newsPost(item.slug)}
+      className={`team-focus ${className}`}
+    >
+      {children}
+    </Link>
+  ) : (
+    <div className={className}>{children}</div>
+  );
+}
+
+function formatDate(value: string) {
+  return dateFormat.format(new Date(value));
 }

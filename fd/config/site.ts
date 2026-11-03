@@ -33,11 +33,11 @@ export const executiveHoverPhotos: Record<string, string> = {
 export const publicNav = [
   { href: "/", label: "Нүүр" },
   { href: "/history", label: "Түүх" },
-  { href: "/players", label: "Roster" },
+  { href: "/players", label: "Тоглогчид" },
+  { href: "/front-office", label: "Удирдлага" },
   { href: "/schedule", label: "Хуваарь" },
+  { href: "/news", label: "Мэдээ" },
   { href: "/media", label: "Медиа" },
-  // Pages not finished yet — hidden from navigation, uncomment to restore:
-  // { href: "/fan-club", label: "Мерч" },
-  // { href: "/front-office", label: "Удирдлага" },
-  // { href: "/sponsors", label: "Sponsors" },
+  { href: "/fan-club", label: "Мерч" },
+  { href: "/sponsors", label: "Дэмжигчид" },
 ] as const;

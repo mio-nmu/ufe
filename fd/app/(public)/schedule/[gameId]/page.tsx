@@ -3,42 +3,14 @@ import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { GameBoxScore } from "@/components/team/schedule-board";
 import { LiveScoreCenter } from "@/components/team/live-score-display";
 import { PageHero } from "@/components/team/page-hero";
 import { routes } from "@/config/routes";
 import { getGames } from "@/lib/content";
-import { opponentLogoSrc, UFE_LOGO_SRC } from "@/lib/team-logos";
+import { gameOpponentLogo, UFE_LOGO_SRC } from "@/lib/team-logos";
 import type { GameRow } from "@/types/content";
 
 export const revalidate = 60;
-
-// Box score hidden until we have real data; flip to true to bring it back.
-const SHOW_BOX_SCORE = false;
-
-function gameTitle(game: GameRow): string {
-  return `${game.isHome ? "vs" : "@"} ${game.opponentShort ?? game.opponent}`;
-}
-
-function gameDate(iso: string): string {
-  return new Intl.DateTimeFormat("en-US", {
-    dateStyle: "full",
-    timeZone: "Asia/Ulaanbaatar",
-  }).format(new Date(iso));
-}
-
-export async function generateMetadata({
-  params,
-}: {
-  params: Promise<{ gameId: string }>;
-}): Promise<Metadata> {
-  const { gameId } = await params;
-  const game = (await getGames()).find((item) => item.id === gameId);
-
-  return {
-    title: game ? `${gameTitle(game)} · Box score` : "Тоглолтын дэлгэрэнгүй",
-  };
-}
 
 export default async function GameDetailsPage({
   params,
@@ -55,7 +27,7 @@ export default async function GameDetailsPage({
     game.teamScore !== null &&
     game.opponentScore !== null &&
     game.teamScore > game.opponentScore;
-  const opponentLogo = opponentLogoSrc(game.opponent);
+  const opponentLogo = gameOpponentLogo(game);
 
   return (
     <>
@@ -64,17 +36,17 @@ export default async function GameDetailsPage({
         title="Box score"
         subtitle={`${game.competition}${game.round ? ` · ${game.round}` : ""}`}
       />
-      <div className="team-shell py-8 md:py-12">
+      <div className="team-shell py-8 md:py-16">
         <Link
           href={routes.site.schedule}
-          className="team-focus text-mute hover:text-ink inline-flex min-h-11 items-center text-[12px] font-semibold tracking-[0.1em] uppercase transition-colors"
+          className="team-focus text-mute hover:text-ink inline-flex min-h-11 items-center text-[12px] font-semibold tracking-[0.12em] uppercase transition-colors"
         >
           ← Бүх тоглолт руу буцах
         </Link>
 
         <section
           aria-label={`${gameTitle(game)} тоглолтын үр дүн`}
-          className="mt-4 border-2 border-[#101827] bg-[#1e1e23] shadow-[0_3px_0_#101827]"
+          className="bg-navy shadow-card mt-4 rounded-lg"
         >
           <div className="grid items-center gap-10 px-6 py-8 sm:grid-cols-[1fr_auto_1fr] sm:px-14 md:py-10">
             <div>
@@ -114,7 +86,7 @@ export default async function GameDetailsPage({
               )}
             </div>
           </div>
-          <div className="flex flex-wrap justify-center gap-x-6 gap-y-2 border-t border-white/10 px-4 py-3 text-[11px] font-semibold tracking-[0.08em] text-white/60 uppercase">
+          <div className="flex flex-wrap justify-center gap-x-6 gap-y-2 border-t border-white/10 px-4 py-3 text-[12px] font-semibold tracking-[0.06em] text-white/60 uppercase">
             {game.round ? <span>{game.round}</span> : null}
             <span>{game.venue}</span>
             {game.status === "SCHEDULED" ? (
@@ -128,13 +100,31 @@ export default async function GameDetailsPage({
             ) : null}
           </div>
         </section>
-
-        {SHOW_BOX_SCORE ? (
-          <div className="mt-8">
-            <GameBoxScore game={game} />
-          </div>
-        ) : null}
       </div>
     </>
   );
+}
+
+function gameDate(iso: string): string {
+  return new Intl.DateTimeFormat("en-US", {
+    dateStyle: "full",
+    timeZone: "Asia/Ulaanbaatar",
+  }).format(new Date(iso));
+}
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ gameId: string }>;
+}): Promise<Metadata> {
+  const { gameId } = await params;
+  const game = (await getGames()).find((item) => item.id === gameId);
+
+  return {
+    title: game ? `${gameTitle(game)} · Box score` : "Тоглолтын дэлгэрэнгүй",
+  };
+}
+
+function gameTitle(game: GameRow): string {
+  return `${game.isHome ? "vs" : "@"} ${game.opponentShort ?? game.opponent}`;
 }

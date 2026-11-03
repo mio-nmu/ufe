@@ -1,5 +1,6 @@
 "use client";
 
+import { buttonVariants } from "@/components/ui/button";
 import { useEffect, useMemo, useState } from "react";
 import { ArrowUpRight, Loader2, Save } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
@@ -65,33 +66,6 @@ export function PageContentEditor({ pageKey }: { pageKey: string }) {
     );
   }
   return <PageSections key={pageDef.key} def={pageDef} />;
-}
-
-export function SiteContentEditor({
-  onOpenTab,
-}: {
-  /** Switches the surrounding CMS tab (pointer links on sections whose
-      data lives in another panel — news, shop…). */
-  onOpenTab?: (tab: string) => void;
-}) {
-  const [tab, setTab] = useState(SITE_CONTENT_PAGES[0]?.key ?? "home");
-  const pageDef =
-    SITE_CONTENT_PAGES.find((page) => page.key === tab) ??
-    SITE_CONTENT_PAGES[0];
-
-  return (
-    <div className={styles.shell}>
-      {/* Keyed remount per tab: switching tabs refetches that page's
-          sections (unsaved edits are dropped by design — matching the rest
-          of the CMS). */}
-      <PageSections
-        key={pageDef.key}
-        def={pageDef}
-        onSelect={setTab}
-        onOpenTab={onOpenTab}
-      />
-    </div>
-  );
 }
 
 function PageSections({
@@ -263,7 +237,7 @@ function PageSections({
                   "text-sm",
                   message.kind === "ok"
                     ? "text-ink font-medium"
-                    : "text-[#B3261E]",
+                    : "text-destructive",
                 )}
               >
                 {message.text}
@@ -273,7 +247,7 @@ function PageSections({
               type="button"
               onClick={() => void save()}
               disabled={saving || dirtySections.length === 0}
-              className="font-display team-focus bg-ink text-paper hover:bg-brand-2 inline-flex h-10 items-center justify-center gap-2 rounded-full px-5 text-[13px] font-semibold tracking-[0.06em] uppercase transition-colors disabled:pointer-events-none disabled:opacity-50"
+              className={buttonVariants({ size: "lg" })}
             >
               <Save className="size-4" aria-hidden="true" />
               {saving
@@ -285,7 +259,7 @@ function PageSections({
           </div>
         </div>
         {copyQuery.isError ? (
-          <p className="mt-2 text-xs text-[#B3261E]" role="alert">
+          <p className="text-destructive mt-2 text-xs" role="alert">
             Хадгалсан текстийг ачаалж чадсангүй — статик нөөцөөс эхэлж байна.
             Хадгалбал дахин оролдоно.
           </p>
@@ -310,7 +284,11 @@ function PageSections({
                     <button
                       type="button"
                       onClick={() => onOpenTab(section.related!.tab)}
-                      className="font-display team-focus text-ink hover:bg-ink hover:text-paper border-ink mt-0.5 inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full border px-3.5 text-[11px] font-semibold tracking-[0.06em] uppercase transition-colors"
+                      className={buttonVariants({
+                        className: "mt-0.5",
+                        size: "sm",
+                        variant: "outline",
+                      })}
                     >
                       {section.related.label}
                       <ArrowUpRight className="size-3.5" aria-hidden="true" />

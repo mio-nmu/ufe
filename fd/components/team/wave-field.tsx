@@ -6,43 +6,6 @@
 const LINE_COUNT = 96;
 const SAMPLES = 90;
 
-/** Deterministic 0..1 shade per line so the field feels hand-drawn. */
-function lineShade(i: number): number {
-  const x = Math.sin((i + 1) * 12.9898) * 43758.5453;
-  return x - Math.floor(x);
-}
-
-/** Vertical envelope: lines spread at the glow center, compress at the edges. */
-function envelope(t: number): number {
-  const d = (t - 0.4) / 0.36;
-  return 0.42 + 0.58 * Math.exp(-d * d);
-}
-
-/** Shared undulating ribbon shape, normalized to roughly -1..1. */
-function ribbon(t: number): number {
-  return (
-    Math.sin(t * Math.PI * 2 * 1.15 + 0.65) * 0.52 +
-    Math.sin(t * Math.PI * 2 * 2.05 + 2.4) * 0.3 +
-    Math.sin(t * Math.PI * 2 * 0.62 + 4.1) * 0.36
-  );
-}
-
-function wavePath(i: number, width: number, height: number): string {
-  const mid = i / (LINE_COUNT - 1) - 0.5;
-  const parts: string[] = [];
-  for (let s = 0; s <= SAMPLES; s++) {
-    const t = s / SAMPLES;
-    const y =
-      height / 2 +
-      mid * height * 0.92 * envelope(t) +
-      ribbon(t) * (height / 19) * (0.35 + 0.65 * envelope(t));
-    parts.push(
-      `${s === 0 ? "M" : "L"}${(t * width).toFixed(1)} ${y.toFixed(1)}`,
-    );
-  }
-  return parts.join(" ");
-}
-
 export function WaveField({
   width = 1600,
   height = 640,
@@ -82,5 +45,42 @@ export function WaveField({
         );
       })}
     </svg>
+  );
+}
+
+/** Deterministic 0..1 shade per line so the field feels hand-drawn. */
+function lineShade(i: number): number {
+  const x = Math.sin((i + 1) * 12.9898) * 43758.5453;
+  return x - Math.floor(x);
+}
+
+function wavePath(i: number, width: number, height: number): string {
+  const mid = i / (LINE_COUNT - 1) - 0.5;
+  const parts: string[] = [];
+  for (let s = 0; s <= SAMPLES; s++) {
+    const t = s / SAMPLES;
+    const y =
+      height / 2 +
+      mid * height * 0.92 * envelope(t) +
+      ribbon(t) * (height / 19) * (0.35 + 0.65 * envelope(t));
+    parts.push(
+      `${s === 0 ? "M" : "L"}${(t * width).toFixed(1)} ${y.toFixed(1)}`,
+    );
+  }
+  return parts.join(" ");
+}
+
+/** Vertical envelope: lines spread at the glow center, compress at the edges. */
+function envelope(t: number): number {
+  const d = (t - 0.4) / 0.36;
+  return 0.42 + 0.58 * Math.exp(-d * d);
+}
+
+/** Shared undulating ribbon shape, normalized to roughly -1..1. */
+function ribbon(t: number): number {
+  return (
+    Math.sin(t * Math.PI * 2 * 1.15 + 0.65) * 0.52 +
+    Math.sin(t * Math.PI * 2 * 2.05 + 2.4) * 0.3 +
+    Math.sin(t * Math.PI * 2 * 0.62 + 4.1) * 0.36
   );
 }

@@ -11,56 +11,10 @@ import {
   playerAge,
   splitName,
 } from "@/components/team/roster-utils";
+import { routes } from "@/config/routes";
 import { playerProfiles, players } from "@/content/site";
 import { getPlayerRowBySlug } from "@/lib/content";
 import { toRosterPlayer } from "@/lib/players";
-
-/**
- * Player profile page. The API row wins; the static roster backs it up by
- * its derived player-<number> slug so links keep working when the backend
- * is unreachable. Purged with the players tag on admin saves.
- */
-
-function staticPlayerBySlug(slug: string): RosterPlayer | null {
-  const profile = playerProfiles.find((p) => `player-${p.number}` === slug);
-  if (!profile) return null;
-  return {
-    ...profile,
-    slug,
-    photo: profile.photo ?? null,
-  };
-}
-
-async function loadPlayer(slug: string): Promise<RosterPlayer | null> {
-  const row = await getPlayerRowBySlug(slug);
-  if (row) return toRosterPlayer(row);
-  return staticPlayerBySlug(slug);
-}
-
-export async function generateMetadata({
-  params,
-}: {
-  params: Promise<{ slug: string }>;
-}): Promise<Metadata> {
-  const { slug } = await params;
-  const player = await loadPlayer(slug);
-  return {
-    title: player ? `${player.name} · ${players.title}` : players.title,
-  };
-}
-
-function Fact({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="border-line px-2 text-center first:pl-0 last:pr-0">
-      <p className="text-mute text-[10px] font-semibold tracking-[0.14em] uppercase">
-        {label}
-      </p>
-      <p className="font-display text-ink mt-1 text-[22px] leading-none font-bold">
-        {value}
-      </p>
-    </div>
-  );
-}
 
 export default async function PlayerPage({
   params,
@@ -83,12 +37,13 @@ export default async function PlayerPage({
   return (
     <>
       <PageHero
-        breadcrumb="Roster"
+        breadcrumb={player.name}
+        parent={{ href: routes.site.roster, label: "Тоглогчид" }}
         subtitle={basePosition(player.position) || players.subtitle}
         title={player.name}
       />
 
-      <section className="team-shell team-shell-wide grid gap-10 py-12 md:py-16 lg:grid-cols-[minmax(0,420px)_1fr]">
+      <section className="team-shell grid gap-10 py-12 md:py-16 lg:grid-cols-[minmax(0,420px)_1fr]">
         {/* Portrait panel — same framing controls as the roster card */}
         <div className="bg-paper-soft border-line relative h-[420px] overflow-hidden border md:h-[500px]">
           <span
@@ -98,7 +53,7 @@ export default async function PlayerPage({
             {String(player.number).padStart(2, "0")}
           </span>
           {player.role ? (
-            <span className="bg-ink text-paper absolute bottom-4 left-4 z-10 px-2 py-1 text-[11px] font-semibold tracking-[0.1em] uppercase">
+            <span className="bg-ink text-paper absolute bottom-4 left-4 z-10 px-2 py-1 text-[12px] font-semibold tracking-[0.12em] uppercase">
               {player.role}
             </span>
           ) : null}
@@ -121,9 +76,9 @@ export default async function PlayerPage({
             <p className="font-display text-mute text-[18px] leading-none font-semibold tracking-[0.06em] uppercase">
               {firstName}
             </p>
-            <h1 className="font-display text-ink mt-1 text-[clamp(34px,5vw,54px)] leading-[1] font-bold tracking-[0.02em] uppercase">
+            <h2 className="font-display text-ink mt-1 text-[clamp(34px,5vw,54px)] leading-[1] font-bold tracking-[0.02em] uppercase">
               {lastName || firstName}
-            </h1>
+            </h2>
           </div>
 
           {/* Measurement strip: height / age / weight */}
@@ -159,7 +114,7 @@ export default async function PlayerPage({
               ).map(([label, value]) =>
                 value ? (
                   <div key={label} className="flex flex-col gap-0.5">
-                    <dt className="text-mute text-[11px] font-semibold tracking-[0.1em] uppercase">
+                    <dt className="text-mute text-[12px] font-semibold tracking-[0.12em] uppercase">
                       {label}
                     </dt>
                     <dd className="text-ink text-sm leading-[1.6] font-medium">
@@ -193,7 +148,7 @@ export default async function PlayerPage({
 
           <div className="pt-2">
             <Link
-              href="/players"
+              href={routes.site.roster}
               className="text-mute hover:text-ink team-focus inline-flex items-center gap-2 text-[12px] font-semibold tracking-[0.12em] uppercase transition-colors"
             >
               <ArrowLeft className="size-4" aria-hidden="true" />
@@ -204,4 +159,51 @@ export default async function PlayerPage({
       </section>
     </>
   );
+}
+
+function Fact({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="border-line px-2 text-center first:pl-0 last:pr-0">
+      <p className="text-mute text-[12px] font-semibold tracking-[0.12em] uppercase">
+        {label}
+      </p>
+      <p className="font-display text-ink mt-1 text-[22px] leading-none font-bold">
+        {value}
+      </p>
+    </div>
+  );
+}
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}): Promise<Metadata> {
+  const { slug } = await params;
+  const player = await loadPlayer(slug);
+  return {
+    title: player ? `${player.name} · ${players.title}` : players.title,
+  };
+}
+
+async function loadPlayer(slug: string): Promise<RosterPlayer | null> {
+  const row = await getPlayerRowBySlug(slug);
+  if (row) return toRosterPlayer(row);
+  return staticPlayerBySlug(slug);
+}
+
+/**
+ * Player profile page. The API row wins; the static roster backs it up by
+ * its derived player-<number> slug so links keep working when the backend
+ * is unreachable. Purged with the players tag on admin saves.
+ */
+
+function staticPlayerBySlug(slug: string): RosterPlayer | null {
+  const profile = playerProfiles.find((p) => `player-${p.number}` === slug);
+  if (!profile) return null;
+  return {
+    ...profile,
+    slug,
+    photo: profile.photo ?? null,
+  };
 }

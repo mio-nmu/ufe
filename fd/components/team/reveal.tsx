@@ -12,11 +12,13 @@ import { cn } from "@/lib/utils";
 export function Reveal({
   children,
   className,
+  id,
   delay = 0,
   as: Tag = "div",
 }: {
   children: ReactNode;
   className?: string;
+  id?: string;
   /** Extra transition delay in ms — use for 60ms section stagger. */
   delay?: number;
   as?: "div" | "section" | "article" | "li" | "header";
@@ -52,6 +54,7 @@ export function Reveal({
     <Tag
       // @ts-expect-error -- polymorphic ref across the allowed tag union
       ref={ref}
+      id={id}
       className={cn("reveal", className)}
       style={delay ? { transitionDelay: `${delay}ms` } : undefined}
     >

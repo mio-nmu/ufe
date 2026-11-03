@@ -2,16 +2,18 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
-import { Heart, Minus, Plus } from "lucide-react";
+import { ArrowUpRight, Mail, Minus, Plus } from "lucide-react";
 
 import type { ShopCategory, ShopProductRow } from "@/types/content";
+import { teamButtonClass } from "@/components/team/button";
 import { cn } from "@/lib/utils";
 
 /**
  * Fan club shop: 40px rotating promo bar (slides every 5s), split hero,
- * six category tiles (192×192), a 260px filter rail (collapsible sections
- * on 48px hairline rows) and a 3-column product grid with favourite
- * buttons, compare-at strikethroughs and size pills.
+ * category chips, a 260px size/price filter rail (collapsible sections on
+ * 48px hairline rows) and a 3-column product grid. Every product card ends
+ * in an action: the store link when the admin set one, otherwise an order
+ * e-mail prefilled with the product name.
  */
 
 const CATEGORIES: Array<{ value: ShopCategory | "ALL"; label: string }> = [
@@ -23,12 +25,6 @@ const CATEGORIES: Array<{ value: ShopCategory | "ALL"; label: string }> = [
   { value: "KIDS", label: "Хүүхдэд" },
   { value: "GEAR", label: "Хэрэгсэл" },
 ];
-
-/** Tile variants mirror the category order for the 6-up strip. */
-const TILES: Array<{ value: ShopCategory; label: string }> = CATEGORIES.filter(
-  (option): option is { value: ShopCategory; label: string } =>
-    option.value !== "ALL",
-).slice(0, 6);
 
 const PRICE_BANDS = [
   { value: "all", label: "Бүгд", test: () => true },
@@ -47,10 +43,8 @@ export interface FanClubContent {
   cta: string;
   heroImage: string;
   promos: string[];
-}
-
-export function formatMnt(price: number): string {
-  return `${new Intl.NumberFormat("en-US").format(price)}₮`;
+  /** Order inbox for products without a store link. */
+  orderEmail: string;
 }
 
 export function FanClubShop({
@@ -65,7 +59,6 @@ export function FanClubShop({
   const [sizes, setSizes] = useState<string[]>([]);
   const [band, setBand] =
     useState<(typeof PRICE_BANDS)[number]["value"]>("all");
-  const [favourites, setFavourites] = useState<Set<string>>(new Set());
 
   // Rotating promo bar — slide every 5s.
   useEffect(() => {
@@ -90,15 +83,6 @@ export function FanClubShop({
     return bandDef ? bandDef.test(product.price) : true;
   });
 
-  const toggleFavourite = (id: string) => {
-    setFavourites((current) => {
-      const next = new Set(current);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  };
-
   return (
     <>
       {/* Rotating promo bar */}
@@ -106,7 +90,7 @@ export function FanClubShop({
         <div className="bg-brand-2 text-paper flex h-10 items-center justify-center overflow-hidden">
           <p
             key={promoIndex}
-            className="view-swap px-4 text-center text-[12px] font-semibold tracking-[0.1em] uppercase"
+            className="view-swap px-4 text-center text-[12px] font-semibold tracking-[0.12em] uppercase"
             aria-live="polite"
           >
             {content.promos[promoIndex]}
@@ -114,67 +98,60 @@ export function FanClubShop({
         </div>
       ) : null}
 
-      {/* Split hero */}
-      <section className="grid md:grid-cols-2">
-        <div className="bg-paper-soft flex min-h-[360px] flex-col justify-center gap-6 p-8 md:min-h-[520px] md:p-16">
-          <h1 className="font-display text-ink text-[clamp(40px,6vw,64px)] leading-[0.95] font-bold tracking-[0.02em] uppercase">
-            {content.title}
-          </h1>
-          <p className="text-mute max-w-md text-[15px] leading-[1.6]">
-            {content.subtitle}
-          </p>
-          <a
-            href="#catalog"
-            className="font-display team-focus bg-ink text-paper hover:bg-brand-2 inline-flex h-13 w-fit items-center rounded-full px-8 text-sm font-semibold tracking-[0.06em] uppercase transition-colors"
-          >
-            {content.cta}
-          </a>
-        </div>
-        <div className="relative hidden min-h-[520px] items-center justify-center bg-[#BDBDB9] md:flex">
-          {content.heroImage ? (
-            <Image
-              src={content.heroImage}
-              alt=""
-              fill
-              sizes="50vw"
-              className="object-cover"
-              priority
-            />
-          ) : (
-            <span className="font-display text-mute/50 text-[13px] tracking-[0.12em] uppercase">
-              Багийн бүтээгдэхүүн
-            </span>
+      {/* Split hero — inside the site container so its edges match the
+          header and the catalog below. */}
+      <section className="bg-paper-soft border-line border-b">
+        <div
+          className={cn(
+            "team-shell grid gap-8 py-12 md:py-16",
+            content.heroImage && "md:grid-cols-2 md:items-center",
           )}
+        >
+          <div className="flex flex-col items-start gap-6">
+            <h1 className="font-display text-ink text-[clamp(40px,6vw,64px)] leading-[0.95] font-bold tracking-[0.02em] uppercase">
+              {content.title}
+            </h1>
+            <p className="text-mute max-w-md text-[15px] leading-[1.6]">
+              {content.subtitle}
+            </p>
+            <a href="#catalog" className={teamButtonClass()}>
+              {content.cta}
+            </a>
+          </div>
+          {content.heroImage ? (
+            <div className="bg-paper-muted border-line relative hidden aspect-[4/3] overflow-hidden rounded-lg border md:block">
+              <Image
+                src={content.heroImage}
+                alt=""
+                fill
+                sizes="50vw"
+                className="object-cover"
+                priority
+              />
+            </div>
+          ) : null}
         </div>
       </section>
 
-      {/* Category tiles */}
-      <div className="team-shell mt-12 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
-        {TILES.map((tile) => (
+      {/* Category chips — the one category control (the rail filters
+          size and price only). */}
+      <div
+        role="group"
+        aria-label="Ангилал"
+        className="team-shell mt-10 flex flex-wrap gap-2"
+      >
+        {CATEGORIES.map((option) => (
           <button
-            key={tile.value}
+            key={option.value}
             type="button"
-            onClick={() =>
-              setCategory((current) =>
-                current === tile.value ? "ALL" : tile.value,
-              )
-            }
-            aria-pressed={category === tile.value}
-            className="team-focus group text-left"
+            onClick={() => setCategory(option.value)}
+            aria-pressed={category === option.value}
+            className={teamButtonClass({
+              size: "sm",
+              variant: category === option.value ? "primary" : "secondary",
+            })}
           >
-            <div
-              className={cn(
-                "bg-paper-soft border-line relative aspect-square overflow-hidden border transition-colors",
-                category === tile.value && "border-ink",
-              )}
-            >
-              <span className="font-display text-mute/40 group-hover:text-mute/70 flex h-full items-center justify-center text-lg font-bold tracking-[0.1em] uppercase transition-colors">
-                {tile.label}
-              </span>
-            </div>
-            <p className="font-display text-ink mt-2 text-[17px] font-semibold tracking-[0.03em] uppercase">
-              {tile.label}
-            </p>
+            {option.label}
           </button>
         ))}
       </div>
@@ -182,35 +159,15 @@ export function FanClubShop({
       {/* Filter rail + product grid */}
       <div
         id="catalog"
-        className="team-shell mt-12 grid scroll-mt-24 pb-16 md:scroll-mt-32 md:pb-20 lg:grid-cols-[260px_1fr]"
+        className="team-shell mt-10 grid scroll-mt-24 gap-8 pb-16 md:scroll-mt-32 md:pb-20 lg:grid-cols-[240px_1fr] lg:gap-10"
       >
         <aside aria-label="Шүүлтүүр">
           <h2 className="font-display text-ink text-[20px] font-bold tracking-[0.02em] uppercase">
             Шүүлтүүр
           </h2>
 
-          <FilterSection title="Ангилал" defaultOpen>
-            <div className="flex flex-col gap-2">
-              {CATEGORIES.map((option) => (
-                <label
-                  key={option.value}
-                  className="flex cursor-pointer items-center gap-2.5"
-                >
-                  <input
-                    type="radio"
-                    name="fan-category"
-                    checked={category === option.value}
-                    onChange={() => setCategory(option.value)}
-                    className="accent-ink size-4"
-                  />
-                  <span className="text-[14px]">{option.label}</span>
-                </label>
-              ))}
-            </div>
-          </FilterSection>
-
           {availableSizes.length > 0 ? (
-            <FilterSection title="Хэмжээ" defaultOpen={false}>
+            <FilterSection title="Хэмжээ" defaultOpen>
               <div className="flex flex-wrap gap-2">
                 {availableSizes.map((size) => {
                   const active = sizes.includes(size);
@@ -274,15 +231,30 @@ export function FanClubShop({
               <ProductCard
                 key={product.id}
                 product={product}
-                favourite={favourites.has(product.id)}
-                onToggleFavourite={() => toggleFavourite(product.id)}
+                orderEmail={content.orderEmail}
               />
             ))}
           </div>
           {filtered.length === 0 ? (
-            <p className="text-mute py-12 text-center text-sm">
-              Шүүлтүүрт тохирох бүтээгдэхүүн олдсонгүй.
-            </p>
+            <div className="border-line flex flex-col items-center gap-4 rounded-lg border border-dashed py-12 text-center">
+              <p className="text-mute text-sm">
+                Шүүлтүүрт тохирох бүтээгдэхүүн олдсонгүй.
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  setCategory("ALL");
+                  setSizes([]);
+                  setBand("all");
+                }}
+                className={teamButtonClass({
+                  size: "sm",
+                  variant: "secondary",
+                })}
+              >
+                Шүүлтүүр цэвэрлэх
+              </button>
+            </div>
           ) : null}
         </div>
       </div>
@@ -322,39 +294,41 @@ function FilterSection({
 
 function ProductCard({
   product,
-  favourite,
-  onToggleFavourite,
+  orderEmail,
 }: {
   product: ShopProductRow;
-  favourite: boolean;
-  onToggleFavourite: () => void;
+  orderEmail: string;
 }) {
-  const body = (
-    <>
+  const orderHref = `mailto:${orderEmail}?subject=${encodeURIComponent(
+    `Мерч захиалга: ${product.name}`,
+  )}`;
+
+  return (
+    <article className="card-lift border-line bg-paper flex flex-col overflow-hidden rounded-lg border">
       <div className="bg-paper-soft relative aspect-square overflow-hidden">
         {product.image ? (
           <Image
             src={product.image}
-            alt=""
+            alt={product.name}
             fill
             sizes="(min-width: 1024px) 30vw, (min-width: 640px) 45vw, 90vw"
             className="object-cover"
           />
         ) : (
-          <span className="font-display text-mute/35 flex h-full items-center justify-center px-6 text-center text-[13px] font-semibold tracking-[0.1em] uppercase">
+          <span className="font-display text-mute/35 flex h-full items-center justify-center px-6 text-center text-[13px] font-semibold tracking-[0.12em] uppercase">
             {product.name}
           </span>
         )}
         {product.badge ? (
-          <span className="bg-ink text-paper absolute top-2 left-2 px-2 py-0.5 text-[11px] font-semibold tracking-[0.08em] uppercase">
+          <span className="bg-ink text-paper absolute top-2 left-2 rounded-full px-2 py-0.5 text-[12px] font-semibold tracking-[0.06em] uppercase">
             {product.badge}
           </span>
         ) : null}
       </div>
-      <div className="p-3.5">
-        <p className="text-ink line-clamp-2 min-h-[42px] text-[16px] leading-[1.3]">
+      <div className="flex flex-1 flex-col p-4">
+        <h3 className="text-ink line-clamp-2 min-h-[42px] text-[16px] leading-[1.3]">
           {product.name}
-        </p>
+        </h3>
         <p className="mt-1.5 text-[18px] font-semibold">
           {formatMnt(product.price)}{" "}
           {product.compareAtPrice ? (
@@ -364,52 +338,49 @@ function ProductCard({
           ) : null}
         </p>
         {product.sizes.length > 0 ? (
-          <div className="mt-2 flex flex-wrap gap-1.5">
+          <ul aria-label="Хэмжээ" className="mt-2 flex flex-wrap gap-1.5">
             {product.sizes.map((size) => (
-              <span
+              <li
                 key={size}
                 className="border-ink/30 text-ink inline-flex h-7 items-center rounded-full border px-2.5 text-[12px] font-semibold"
               >
                 {size}
-              </span>
+              </li>
             ))}
-          </div>
+          </ul>
         ) : null}
-      </div>
-    </>
-  );
-
-  return (
-    <article className="border-line border transition-[box-shadow,transform] duration-200 hover:-translate-y-1 hover:shadow-[0_12px_24px_rgba(0,0,0,0.14)]">
-      <div className="relative">
-        {product.url ? (
-          <a
-            href={product.url}
-            target="_blank"
-            rel="noreferrer"
-            className="team-focus block"
-          >
-            {body}
-          </a>
-        ) : (
-          body
-        )}
-        <button
-          type="button"
-          onClick={onToggleFavourite}
-          aria-pressed={favourite}
-          aria-label={`${product.name} — дуртай`}
-          className="bg-paper border-line team-focus absolute top-2 right-2 flex size-11 items-center justify-center rounded-full border"
-        >
-          <Heart
-            className={cn(
-              "size-5 transition-colors",
-              favourite ? "fill-ink text-ink" : "text-mute",
-            )}
-            aria-hidden="true"
-          />
-        </button>
+        <div className="mt-auto pt-4">
+          {product.url ? (
+            <a
+              href={product.url}
+              target="_blank"
+              rel="noreferrer"
+              aria-label={`${product.name} — худалдаж авах`}
+              className={teamButtonClass({ size: "sm", className: "w-full" })}
+            >
+              Худалдаж авах
+              <ArrowUpRight className="size-4" aria-hidden="true" />
+            </a>
+          ) : (
+            <a
+              href={orderHref}
+              aria-label={`${product.name} — захиалах`}
+              className={teamButtonClass({
+                size: "sm",
+                variant: "secondary",
+                className: "w-full",
+              })}
+            >
+              <Mail className="size-4" aria-hidden="true" />
+              Захиалах
+            </a>
+          )}
+        </div>
       </div>
     </article>
   );
+}
+
+function formatMnt(price: number): string {
+  return `${new Intl.NumberFormat("en-US").format(price)}₮`;
 }

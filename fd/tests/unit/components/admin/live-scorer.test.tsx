@@ -39,16 +39,19 @@ vi.mock("@/services/live-games.service", () => ({
 class FakeEventSource {
   static instances: FakeEventSource[] = [];
   onopen: (() => void) | null = null;
-  private listeners = new Map<string, () => void>();
+  private listeners = new Map<string, (event: { data: string }) => void>();
   constructor(public url: string) {
     FakeEventSource.instances.push(this);
   }
-  addEventListener(type: string, callback: () => void): void {
+  addEventListener(
+    type: string,
+    callback: (event: { data: string }) => void,
+  ): void {
     this.listeners.set(type, callback);
   }
-  emit(type: string): void {
+  emit(type: string, payload: unknown = {}): void {
     const callback = this.listeners.get(type);
-    if (callback) act(() => callback());
+    if (callback) act(() => callback({ data: JSON.stringify(payload) }));
   }
   close(): void {}
 }
@@ -90,6 +93,28 @@ function base(overrides: Partial<LiveGameState> = {}): LiveGameState {
     // "now" is pinned inside each test via the elapsed override
     updatedAt: new Date(Date.now() - 10_000).toISOString(),
     ...overrides,
+  };
+}
+
+interface ActionResult {
+  event: LiveGameEvent;
+  reversedEventId?: string;
+  state: LiveGameState;
+}
+
+let eventSeq = 0;
+
+/** A scorer action response: the new state plus the event it recorded. */
+function result(state: LiveGameState, id = `evt-${++eventSeq}`): ActionResult {
+  return {
+    event: {
+      id,
+      type: "score",
+      payload: {},
+      reversed: false,
+      createdAt: new Date().toISOString(),
+    },
+    state,
   };
 }
 
@@ -193,8 +218,8 @@ describe("LiveScorer burst guard", () => {
     const container = await mountScorer();
 
     // +3 then +2 tapped faster than the server answers (basket + and-one).
-    let resolveFirst!: (value: { state: LiveGameState }) => void;
-    let resolveSecond!: (value: { state: LiveGameState }) => void;
+    let resolveFirst!: (value: ActionResult) => void;
+    let resolveSecond!: (value: ActionResult) => void;
     mocks.liveGamesService.action
       .mockImplementationOnce(
         () => new Promise((resolve) => (resolveFirst = resolve)),
@@ -212,21 +237,21 @@ describe("LiveScorer burst guard", () => {
 
     // Newest response lands first and applies.
     await act(async () => {
-      resolveSecond({ state: base({ teamScore: 5 }) });
+      resolveSecond(result(base({ teamScore: 5 })));
     });
     expect(bigScore(container)).toBe("5");
 
     // The stale +3 response lands LAST — before the fix this reverted 5 → 3.
     await act(async () => {
-      resolveFirst({ state: base({ teamScore: 3 }) });
+      resolveFirst(result(base({ teamScore: 3 })));
     });
     expect(bigScore(container)).toBe("5");
   });
 
-  it("ignores an SSE-triggered GET while an action is still in flight", async () => {
+  it("ignores pushed SSE state while an action is still in flight", async () => {
     const container = await mountScorer();
 
-    let resolveAction!: (value: { state: LiveGameState }) => void;
+    let resolveAction!: (value: ActionResult) => void;
     mocks.liveGamesService.action.mockImplementationOnce(
       () => new Promise((resolve) => (resolveAction = resolve)),
     );
@@ -235,20 +260,32 @@ describe("LiveScorer burst guard", () => {
     fireEvent.click(plus3);
     expect(bigScore(container)).toBe("3");
 
-    // The GET fires while the action POST is unresolved and returns the
+    // A push arrives while the action POST is unresolved carrying the
     // pre-action state — applying it would flash 3 → 0.
-    mocks.liveGamesService.get.mockResolvedValue({
-      state: base({ teamScore: 0 }),
-    });
     const stream = FakeEventSource.instances.at(-1);
-    stream?.emit("state_changed");
+    stream?.emit("state_changed", { state: base({ teamScore: 0 }) });
     await act(async () => {});
     expect(bigScore(container)).toBe("3");
 
     await act(async () => {
-      resolveAction({ state: base({ teamScore: 3 }) });
+      resolveAction(result(base({ teamScore: 3 })));
     });
     expect(bigScore(container)).toBe("3");
+  });
+
+  it("logs the action's event from its response without refetching history", async () => {
+    await mountScorer();
+    const eventsCalls = mocks.liveGamesService.events.mock.calls.length;
+    mocks.liveGamesService.action.mockResolvedValueOnce(
+      result(base({ teamScore: 3 }), "evt-42"),
+    );
+
+    fireEvent.click(screen.getAllByRole("button", { name: "+3" })[0]);
+    await waitFor(() =>
+      expect(mocks.liveGamesService.action).toHaveBeenCalledTimes(1),
+    );
+    await waitFor(() => expect(screen.getByText(/^score ·/)).toBeTruthy());
+    expect(mocks.liveGamesService.events.mock.calls.length).toBe(eventsCalls);
   });
 
   it("resyncs on stream (re)connect so missed events heal", async () => {

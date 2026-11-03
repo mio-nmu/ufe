@@ -18,24 +18,6 @@ export const metadata: Metadata = {
   title: players.title,
 };
 
-/**
- * Transparent cutouts live at public/images/player/<number>.png — dropping a
- * file in is enough (an explicit `photo` field on the Player row always
- * wins). Same fallback applies to the static roster when the API is
- * unreachable.
- */
-function resolvePhoto(player: RosterPlayer): null | string {
-  if (player.photo) return player.photo;
-  const file = path.join(
-    process.cwd(),
-    "public",
-    "images",
-    "player",
-    `${player.number}.png`,
-  );
-  return fs.existsSync(file) ? `/images/player/${player.number}.png` : null;
-}
-
 export default async function RosterPage() {
   const [copy, playerRows] = await Promise.all([
     getPageCopy("players", "page"),
@@ -61,7 +43,7 @@ export default async function RosterPage() {
   return (
     <>
       <PageHero
-        breadcrumb="Roster"
+        breadcrumb="Тоглогчид"
         subtitle={meta.subtitle}
         title={meta.title}
         mark="/images/horse-mark.png"
@@ -70,4 +52,22 @@ export default async function RosterPage() {
       <RosterBrowser players={roster} />
     </>
   );
+}
+
+/**
+ * Transparent cutouts live at public/images/player/<number>.png — dropping a
+ * file in is enough (an explicit `photo` field on the Player row always
+ * wins). Same fallback applies to the static roster when the API is
+ * unreachable.
+ */
+function resolvePhoto(player: RosterPlayer): null | string {
+  if (player.photo) return player.photo;
+  const file = path.join(
+    process.cwd(),
+    "public",
+    "images",
+    "player",
+    `${player.number}.png`,
+  );
+  return fs.existsSync(file) ? `/images/player/${player.number}.png` : null;
 }

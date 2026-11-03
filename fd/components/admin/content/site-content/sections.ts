@@ -88,6 +88,7 @@ export const CONSUMED_SECTION_PAIRS: Array<[string, string]> = [
   ["home", "news"],
   ["home", "stats"],
   ["home", "thanks"],
+  ["home", "timeline"],
   ["history", "page"],
   ["players", "page"],
   ["fan-club", "page"],
@@ -180,6 +181,38 @@ export const SITE_CONTENT_PAGES: SitePageDef[] = [
             fields: [
               text("value", "Утга", { placeholder: "6,000+" }),
               text("label", "Тайлбар", { placeholder: "Оюутан" }),
+            ],
+          },
+        ],
+      },
+      {
+        page: "home",
+        section: "timeline",
+        title: "Түүхэн мөчүүд",
+        description:
+          "Нүүр хуудасны түүхийн тууз: гарчиг, товч ба 6 хүртэлх үе. Медаль: gold, silver, bronze эсвэл хоосон.",
+        fields: [
+          text("eyebrow", "Дээд шошго", {
+            placeholder: "1992 — Өнөөдрийг хүртэл",
+          }),
+          text("title", "Гарчиг"),
+          text("cta", "Товчны бичвэр"),
+          {
+            kind: "cards",
+            key: "items",
+            label: "Үеүд",
+            titleKey: "period",
+            itemLabel: "Үе",
+            min: 1,
+            max: 6,
+            newItem: () => ({ description: "", medal: "", period: "Шинэ он" }),
+            fields: [
+              text("period", "Үе / он", { placeholder: "2025–2026" }),
+              area("description", "Тайлбар", { max: 160, rows: 2 }),
+              text("medal", "Медаль", {
+                help: "gold, silver, bronze (эсвэл алт, мөнгө, хүрэл). Хоосон бол медальгүй.",
+                placeholder: "gold",
+              }),
             ],
           },
         ],
@@ -400,24 +433,23 @@ function heroSection(
   };
 }
 
-// ── Normalization (stored blob → never-empty editing state) ─────────────────
-
-function isPlainObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function toStringArray(value: unknown): string[] {
-  if (!Array.isArray(value)) return [];
-  return value.filter((item): item is string => typeof item === "string");
-}
-
-function toObjectArray(value: unknown): Record<string, unknown>[] {
-  if (!Array.isArray(value)) return [];
-  return value.filter(isPlainObject);
-}
-
-function nonEmptyString(value: unknown): string | null {
-  return typeof value === "string" && value.length > 0 ? value : null;
+/**
+ * Stored section blob → editor state: every modelled field resolves to its
+ * stored value, else the static public-site default, so the form never
+ * renders blank. Unknown keys ride along untouched.
+ */
+export function normalizeSectionData(
+  def: SiteSectionDef,
+  raw: unknown,
+): Record<string, unknown> {
+  const fallback = siteContentDefault(def.page, def.section) ?? {};
+  const source = isPlainObject(raw) && Object.keys(raw).length > 0 ? raw : {};
+  const out = normalizeFields(def.fields, source, fallback);
+  const known = new Set(def.fields.map((field) => field.key));
+  for (const [key, value] of Object.entries(source)) {
+    if (!known.has(key)) out[key] = value;
+  }
+  return out;
 }
 
 function normalizeFields(
@@ -469,21 +501,22 @@ function normalizeFields(
   return out;
 }
 
-/**
- * Stored section blob → editor state: every modelled field resolves to its
- * stored value, else the static public-site default, so the form never
- * renders blank. Unknown keys ride along untouched.
- */
-export function normalizeSectionData(
-  def: SiteSectionDef,
-  raw: unknown,
-): Record<string, unknown> {
-  const fallback = siteContentDefault(def.page, def.section) ?? {};
-  const source = isPlainObject(raw) && Object.keys(raw).length > 0 ? raw : {};
-  const out = normalizeFields(def.fields, source, fallback);
-  const known = new Set(def.fields.map((field) => field.key));
-  for (const [key, value] of Object.entries(source)) {
-    if (!known.has(key)) out[key] = value;
-  }
-  return out;
+// ── Normalization (stored blob → never-empty editing state) ─────────────────
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function toStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((item): item is string => typeof item === "string");
+}
+
+function toObjectArray(value: unknown): Record<string, unknown>[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter(isPlainObject);
+}
+
+function nonEmptyString(value: unknown): string | null {
+  return typeof value === "string" && value.length > 0 ? value : null;
 }

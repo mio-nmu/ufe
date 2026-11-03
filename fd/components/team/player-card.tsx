@@ -1,4 +1,4 @@
-import { ArrowRight, ChevronDown, Trophy } from "lucide-react";
+import { ArrowRight, Trophy } from "lucide-react";
 import Link from "next/link";
 
 import { PlayerCutout } from "@/components/team/player-photo";
@@ -9,7 +9,6 @@ import {
   playerHref,
   splitName,
 } from "@/components/team/roster-utils";
-import { cn } from "@/lib/utils";
 
 /**
  * Shared expandable detail block (achievements + the three personal lines)
@@ -44,7 +43,7 @@ export function PlayerDetails({ player }: { player: RosterPlayer }) {
       <dl className="space-y-2 px-5">
         {personalLines.map((line) => (
           <div key={line.label} className="flex flex-col gap-0.5">
-            <dt className="text-mute text-[11px] font-semibold tracking-[0.1em] uppercase">
+            <dt className="text-mute text-[12px] font-semibold tracking-[0.12em] uppercase">
               {line.label}
             </dt>
             <dd className="text-ink text-sm leading-[1.6] font-medium">
@@ -53,53 +52,6 @@ export function PlayerDetails({ player }: { player: RosterPlayer }) {
           </div>
         ))}
       </dl>
-    </div>
-  );
-}
-
-/** The "Дэлгэрэнгүй" footer toggle shared by the player and staff cards. */
-export function DetailsToggle({
-  expanded,
-  onToggle,
-  controlId,
-}: {
-  expanded: boolean;
-  onToggle: () => void;
-  controlId: string;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onToggle}
-      aria-expanded={expanded}
-      aria-controls={controlId}
-      className="text-mute hover:text-ink team-focus flex w-full items-center justify-between gap-2 border-t px-5 py-3.5 text-[12px] font-semibold tracking-[0.12em] uppercase transition-colors"
-    >
-      <span className="flex items-center gap-2">
-        <Trophy className="size-4" aria-hidden="true" />
-        {expanded ? "Хураангуйлах" : "Дэлгэрэнгүй"}
-      </span>
-      <ChevronDown
-        className={cn(
-          "size-4 transition-transform duration-150",
-          expanded && "rotate-180",
-        )}
-        aria-hidden="true"
-      />
-    </button>
-  );
-}
-
-/** Cell of the card's 3-up measurement strip. */
-function MeasureCell({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="px-2 text-center first:pl-0 last:pr-0">
-      <p className="text-mute text-[10px] font-semibold tracking-[0.14em] uppercase">
-        {label}
-      </p>
-      <p className="font-display text-ink mt-1 text-[20px] leading-none font-bold">
-        {value}
-      </p>
     </div>
   );
 }
@@ -120,13 +72,9 @@ export function PlayerCard({ player }: { player: RosterPlayer }) {
     <Link
       href={playerHref(player)}
       aria-label={`${player.name} — дэлгэрэнгүй`}
-      className="border-line bg-paper team-focus group relative flex flex-col border transition-[box-shadow,transform,border-color] duration-200 hover:-translate-y-1 hover:shadow-[0_12px_24px_rgba(0,0,0,0.14)]"
+      className="card-lift border-line bg-paper team-focus group relative flex flex-col overflow-hidden rounded-lg border"
     >
       {/* Ink top border that grows in on hover */}
-      <span
-        aria-hidden="true"
-        className="bg-ink absolute inset-x-0 top-0 h-1 origin-left scale-x-0 transition-transform duration-200 group-hover:scale-x-100"
-      />
 
       {/* Portrait panel: mist ground, watermark numeral, role pill */}
       <div className="bg-paper-soft relative h-[280px] overflow-hidden md:h-[300px]">
@@ -137,11 +85,11 @@ export function PlayerCard({ player }: { player: RosterPlayer }) {
           {String(player.number).padStart(2, "0")}
         </span>
         {player.role ? (
-          <span className="bg-ink text-paper absolute bottom-3 left-3 z-10 px-2 py-1 text-[11px] font-semibold tracking-[0.1em] uppercase">
+          <span className="bg-ink text-paper absolute bottom-3 left-3 z-10 px-2 py-1 text-[12px] font-semibold tracking-[0.12em] uppercase">
             {player.role}
           </span>
         ) : null}
-        <div className="absolute inset-0 z-[5] transition-transform duration-400 group-hover:scale-[1.04]">
+        <div className="absolute inset-0 z-[5] transition-transform duration-300 group-hover:scale-[1.03]">
           <PlayerCutout
             name={player.name}
             number={player.number}
@@ -157,7 +105,7 @@ export function PlayerCard({ player }: { player: RosterPlayer }) {
 
       {/* Name block: position chip, small first name, big last name */}
       <div className="px-4 pt-4">
-        <span className="border-ink text-ink mb-2 inline-block border px-2 py-0.5 text-[11px] font-bold tracking-[0.1em] uppercase">
+        <span className="border-line text-ink mb-2 inline-block rounded-full border px-2.5 py-0.5 text-[12px] font-bold tracking-[0.12em] uppercase">
           {basePosition(player.position)}
         </span>
         <p className="font-display text-mute text-[13px] leading-none font-semibold tracking-[0.06em] break-words uppercase sm:text-[15px]">
@@ -192,5 +140,19 @@ export function PlayerCard({ player }: { player: RosterPlayer }) {
         </span>
       </div>
     </Link>
+  );
+}
+
+/** Cell of the card's 3-up measurement strip. */
+function MeasureCell({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="px-2 text-center first:pl-0 last:pr-0">
+      <p className="text-mute text-[12px] font-semibold tracking-[0.12em] uppercase">
+        {label}
+      </p>
+      <p className="font-display text-ink mt-1 text-[20px] leading-none font-bold">
+        {value}
+      </p>
+    </div>
   );
 }

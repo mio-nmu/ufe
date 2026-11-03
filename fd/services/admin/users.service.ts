@@ -24,6 +24,12 @@ export const adminUsersService = {
     return api.get<{ user: User }>(`/api/v1/admin/users/${id}`);
   },
 
+  setUserRole(id: string, role: "ADMIN" | "USER"): Promise<{ user: User }> {
+    return api.patch<{ user: User }>(`/api/v1/admin/users/${id}/role`, {
+      role,
+    });
+  },
+
   setUserStatus(id: string, isActive: boolean): Promise<{ user: User }> {
     return api.patch<{ user: User }>(`/api/v1/admin/users/${id}/status`, {
       isActive,

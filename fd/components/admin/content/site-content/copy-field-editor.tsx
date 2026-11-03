@@ -1,5 +1,6 @@
 "use client";
 
+import { buttonVariants } from "@/components/ui/button";
 import { useState } from "react";
 import {
   ChevronDown,
@@ -31,46 +32,11 @@ const inputClass =
 const textareaClass =
   "border-input bg-background team-focus text-ink placeholder:text-mute/60 focus-visible:outline-none w-full rounded-md border px-3 py-2 text-sm leading-relaxed transition-colors";
 
-function FieldLabel({
-  htmlFor,
-  children,
-}: {
-  htmlFor?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <label
-      htmlFor={htmlFor}
-      className="text-mute text-[11px] font-semibold tracking-[0.12em] uppercase"
-    >
-      {children}
-    </label>
-  );
-}
+// ── Drag-reorder state shared by the row list editors ────────────────────────
 
-function FieldHelp({ children }: { children: React.ReactNode }) {
-  return <p className="text-mute text-xs leading-relaxed">{children}</p>;
-}
-
-/** Small editorial pill button (TeamButton outline, mini). */
-function PillButton({
-  children,
-  className,
-  ...props
-}: React.ComponentProps<"button">) {
-  return (
-    <button
-      type="button"
-      className={cn(
-        "font-display team-focus text-ink hover:bg-ink hover:text-paper border-ink inline-flex h-8 items-center gap-1.5 rounded-full border px-3.5 text-[12px] font-semibold tracking-[0.06em] uppercase transition-colors",
-        "disabled:pointer-events-none disabled:opacity-40",
-        className,
-      )}
-      {...props}
-    >
-      {children}
-    </button>
-  );
+interface DragState {
+  dragIndex: number | null;
+  overIndex: number | null;
 }
 
 // ── Field tree renderer ──────────────────────────────────────────────────────
@@ -102,7 +68,7 @@ export function CopyFields({
           >
             {field.kind === "group" ? (
               <fieldset className="border-line bg-paper-soft/40 space-y-2 rounded-md border p-4">
-                <legend className="text-mute px-1 text-[11px] font-semibold tracking-[0.12em] uppercase">
+                <legend className="text-mute px-1 text-[12px] font-semibold tracking-[0.12em] uppercase">
                   {field.label}
                 </legend>
                 <CopyFields
@@ -151,87 +117,10 @@ export function CopyFields({
   );
 }
 
-function StringControl({
-  field,
-  id,
-  raw,
-  onChange,
-}: {
-  field: Extract<CopyFieldDef, { kind: "text" | "textarea" | "url" | "color" }>;
-  id: string;
-  raw: unknown;
-  onChange: (next: string) => void;
-}) {
-  const value = typeof raw === "string" ? raw : "";
-
-  if (field.kind === "textarea") {
-    const max = field.max;
-    const atLimit = max !== undefined && value.length >= max;
-    return (
-      <div className="relative">
-        <textarea
-          id={id}
-          value={value}
-          rows={field.rows ?? 3}
-          maxLength={max}
-          placeholder={field.placeholder}
-          onChange={(event) => onChange(event.target.value)}
-          className={cn(
-            textareaClass,
-            "min-h-20",
-            max !== undefined && "pr-14 pb-5",
-          )}
-        />
-        {max !== undefined ? (
-          <span
-            aria-live="polite"
-            className={cn(
-              "absolute right-2.5 bottom-1.5 text-[10px] tabular-nums",
-              atLimit ? "text-[#B3261E]" : "text-mute",
-            )}
-          >
-            {value.length} / {max}
-          </span>
-        ) : null}
-      </div>
-    );
-  }
-
-  const looksLikeHex = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(value);
-
-  return (
-    <div className="flex items-center gap-2">
-      {field.kind === "color" ? (
-        <span
-          aria-hidden="true"
-          className="border-line size-9 shrink-0 rounded-md border"
-          style={looksLikeHex ? { backgroundColor: value } : undefined}
-        />
-      ) : null}
-      <input
-        id={id}
-        type={field.kind === "url" ? "url" : "text"}
-        value={value}
-        placeholder={field.placeholder}
-        onChange={(event) => onChange(event.target.value)}
-        className={inputClass}
-      />
-    </div>
-  );
-}
-
-// ── Drag-reorder state shared by the row list editors ────────────────────────
-
-interface DragState {
-  dragIndex: number | null;
-  overIndex: number | null;
-}
-
-function moveItem<T>(items: T[], from: number, to: number): T[] {
-  const next = [...items];
-  const [moved] = next.splice(from, 1);
-  next.splice(to, 0, moved);
-  return next;
+function plainObject(value: unknown): Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
 }
 
 // ── Repeatable string rows ───────────────────────────────────────────────────
@@ -303,7 +192,7 @@ function ListEditor({
             >
               <span
                 aria-hidden="true"
-                className="bg-paper-soft text-mute flex size-6 shrink-0 items-center justify-center rounded-[4px] text-[11px] font-semibold tabular-nums"
+                className="bg-paper-soft text-mute flex size-6 shrink-0 items-center justify-center rounded-[4px] text-[12px] font-semibold tabular-nums"
               >
                 {index + 1}
               </span>
@@ -349,7 +238,7 @@ function BulkEditLines({
 
   return (
     <details className="group/bulk">
-      <summary className="text-mute hover:text-ink team-focus mt-1 inline-flex cursor-pointer list-none items-center gap-1 text-[11px] font-semibold tracking-[0.12em] uppercase transition-colors [&::-webkit-details-marker]:hidden">
+      <summary className="text-mute hover:text-ink team-focus mt-1 inline-flex cursor-pointer list-none items-center gap-1 text-[12px] font-semibold tracking-[0.12em] uppercase transition-colors [&::-webkit-details-marker]:hidden">
         Бөөнөөр засах
         <ChevronDown
           aria-hidden="true"
@@ -379,6 +268,12 @@ function BulkEditLines({
       />
     </details>
   );
+}
+
+function toStringArray(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === "string")
+    : [];
 }
 
 // ── Accordion object cards ───────────────────────────────────────────────────
@@ -470,7 +365,7 @@ function CardsEditor({
                   <span
                     aria-hidden="true"
                     className={cn(
-                      "flex size-6 shrink-0 items-center justify-center rounded-[4px] text-[11px] font-semibold tabular-nums transition-colors",
+                      "flex size-6 shrink-0 items-center justify-center rounded-[4px] text-[12px] font-semibold tabular-nums transition-colors",
                       open ? "bg-ink text-paper" : "bg-paper-soft text-mute",
                     )}
                   >
@@ -480,7 +375,7 @@ function CardsEditor({
                     {title}
                   </span>
                   {open ? (
-                    <span className="bg-ink text-paper rounded-full px-2 py-0.5 text-[10px] font-semibold tracking-[0.08em] uppercase">
+                    <span className="bg-ink text-paper rounded-full px-2 py-0.5 text-[12px] font-semibold tracking-[0.06em] uppercase">
                       Засварлаж байна
                     </span>
                   ) : null}
@@ -511,6 +406,84 @@ function CardsEditor({
         ) : null}
       </div>
       {field.help ? <FieldHelp>{field.help}</FieldHelp> : null}
+    </div>
+  );
+}
+
+function toObjectArray(value: unknown): Record<string, unknown>[] {
+  return Array.isArray(value)
+    ? value.filter(
+        (item): item is Record<string, unknown> =>
+          typeof item === "object" && item !== null && !Array.isArray(item),
+      )
+    : [];
+}
+
+function StringControl({
+  field,
+  id,
+  raw,
+  onChange,
+}: {
+  field: Extract<CopyFieldDef, { kind: "text" | "textarea" | "url" | "color" }>;
+  id: string;
+  raw: unknown;
+  onChange: (next: string) => void;
+}) {
+  const value = typeof raw === "string" ? raw : "";
+
+  if (field.kind === "textarea") {
+    const max = field.max;
+    const atLimit = max !== undefined && value.length >= max;
+    return (
+      <div className="relative">
+        <textarea
+          id={id}
+          value={value}
+          rows={field.rows ?? 3}
+          maxLength={max}
+          placeholder={field.placeholder}
+          onChange={(event) => onChange(event.target.value)}
+          className={cn(
+            textareaClass,
+            "min-h-20",
+            max !== undefined && "pr-14 pb-5",
+          )}
+        />
+        {max !== undefined ? (
+          <span
+            aria-live="polite"
+            className={cn(
+              "absolute right-2.5 bottom-1.5 text-[12px] tabular-nums",
+              atLimit ? "text-destructive" : "text-mute",
+            )}
+          >
+            {value.length} / {max}
+          </span>
+        ) : null}
+      </div>
+    );
+  }
+
+  const looksLikeHex = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(value);
+
+  return (
+    <div className="flex items-center gap-2">
+      {field.kind === "color" ? (
+        <span
+          aria-hidden="true"
+          className="border-line size-9 shrink-0 rounded-md border"
+          style={looksLikeHex ? { backgroundColor: value } : undefined}
+        />
+      ) : null}
+      <input
+        id={id}
+        type={field.kind === "url" ? "url" : "text"}
+        value={value}
+        placeholder={field.placeholder}
+        onChange={(event) => onChange(event.target.value)}
+        className={inputClass}
+      />
     </div>
   );
 }
@@ -588,7 +561,7 @@ function ReorderableRow({
           aria-label="Дээш нь зөөх"
           disabled={index === 0}
           onClick={() => onMove(-1)}
-          className="team-focus text-mute hover:bg-paper-soft hover:text-ink flex size-7 cursor-pointer items-center justify-center rounded-md transition-colors disabled:pointer-events-none disabled:opacity-30"
+          className={buttonVariants({ size: "icon-xs", variant: "ghost" })}
         >
           <ChevronUp className="size-3.5" aria-hidden="true" />
         </button>
@@ -597,7 +570,7 @@ function ReorderableRow({
           aria-label="Доош нь зөөх"
           disabled={index === count - 1}
           onClick={() => onMove(1)}
-          className="team-focus text-mute hover:bg-paper-soft hover:text-ink flex size-7 cursor-pointer items-center justify-center rounded-md transition-colors disabled:pointer-events-none disabled:opacity-30"
+          className={buttonVariants({ size: "icon-xs", variant: "ghost" })}
         >
           <ChevronDown className="size-3.5" aria-hidden="true" />
         </button>
@@ -607,7 +580,10 @@ function ReorderableRow({
           title={canRemove ? removeLabel : "Хамгийн багадаа нэг бичлэг үлдэнэ"}
           disabled={!canRemove}
           onClick={onRemove}
-          className="team-focus flex size-7 cursor-pointer items-center justify-center rounded-md text-[#B3261E] transition-colors hover:bg-[#B3261E]/10 disabled:pointer-events-none disabled:opacity-30"
+          className={buttonVariants({
+            size: "icon-xs",
+            variant: "destructive",
+          })}
         >
           <Trash2 className="size-3.5" aria-hidden="true" />
         </button>
@@ -616,23 +592,51 @@ function ReorderableRow({
   );
 }
 
-function plainObject(value: unknown): Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : {};
+function moveItem<T>(items: T[], from: number, to: number): T[] {
+  const next = [...items];
+  const [moved] = next.splice(from, 1);
+  next.splice(to, 0, moved);
+  return next;
 }
 
-function toStringArray(value: unknown): string[] {
-  return Array.isArray(value)
-    ? value.filter((item): item is string => typeof item === "string")
-    : [];
+/** Small editorial pill button (TeamButton outline, mini). */
+function PillButton({
+  children,
+  className,
+  ...props
+}: React.ComponentProps<"button">) {
+  return (
+    <button
+      type="button"
+      className={cn(
+        buttonVariants({ size: "sm", variant: "outline" }),
+        "disabled:pointer-events-none disabled:opacity-40",
+        className,
+      )}
+      {...props}
+    >
+      {children}
+    </button>
+  );
 }
 
-function toObjectArray(value: unknown): Record<string, unknown>[] {
-  return Array.isArray(value)
-    ? value.filter(
-        (item): item is Record<string, unknown> =>
-          typeof item === "object" && item !== null && !Array.isArray(item),
-      )
-    : [];
+function FieldLabel({
+  htmlFor,
+  children,
+}: {
+  htmlFor?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <label
+      htmlFor={htmlFor}
+      className="text-mute text-[12px] font-semibold tracking-[0.12em] uppercase"
+    >
+      {children}
+    </label>
+  );
+}
+
+function FieldHelp({ children }: { children: React.ReactNode }) {
+  return <p className="text-mute text-xs leading-relaxed">{children}</p>;
 }

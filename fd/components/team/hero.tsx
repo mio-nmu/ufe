@@ -7,6 +7,8 @@ import { WaveField } from "@/components/team/wave-field";
 import { routes } from "@/config/routes";
 import { siteConfig } from "@/config/site";
 
+const AUTOPLAY_MS = 8000;
+
 // ── Hero carousel ───────────────────────────────────────────────────────────
 // Responsive ink panel: wave-field texture, bottom gradient, condensed
 // headline. Three horizontally sliding panels autoplay every 8s with 80×3
@@ -30,32 +32,6 @@ interface Slide {
   primary: { label: string; href: string };
   secondary?: { label: string; href: string };
 }
-
-function buildSlides(copy: HeroCopy, historyIntro: string): Slide[] {
-  return [
-    {
-      kicker: copy.badge,
-      headline: copy.headline,
-      subline: copy.intro,
-      primary: { label: copy.ctaPlayers, href: routes.site.roster },
-      secondary: { label: copy.ctaHistory, href: routes.site.history },
-    },
-    {
-      kicker: `${copy.aubl.title} · 2026–2027`,
-      headline: copy.aubl.title,
-      subline: copy.aubl.text,
-      primary: { label: copy.ctaHistory, href: routes.site.history },
-    },
-    {
-      kicker: "Түүх · 1992–2026",
-      headline: "1992 оноос өнөөдрийг хүртэл",
-      subline: historyIntro,
-      primary: { label: "Түүхийг үзэх", href: routes.site.history },
-    },
-  ];
-}
-
-const AUTOPLAY_MS = 8000;
 
 export function Hero({
   copy,
@@ -108,7 +84,7 @@ export function Hero({
         if (event.key === "ArrowLeft") go(index - 1);
       }}
     >
-      <div className="relative flex min-h-[76svh] items-center overflow-hidden border-t border-white/70 bg-[#09183a] text-white sm:min-h-[72svh]">
+      <div className="bg-navy relative flex min-h-[480px] items-center overflow-hidden border-t border-white/70 text-white sm:min-h-[72svh]">
         <div
           ref={parallaxRef}
           className="absolute inset-0 will-change-transform"
@@ -121,7 +97,7 @@ export function Hero({
         />
         <div
           aria-hidden="true"
-          className="pointer-events-none absolute inset-x-0 bottom-0 h-24 bg-gradient-to-b from-transparent to-[#10151c]"
+          className="to-ink pointer-events-none absolute inset-x-0 bottom-0 h-24 bg-gradient-to-b from-transparent"
         />
         {/* Hero visual — decorative group photo on the right rail, above the
             gradient but under the slide copy (DOM order) so controls stay
@@ -151,7 +127,7 @@ export function Hero({
           className="absolute top-8 right-6 hidden h-auto w-32 lg:block xl:w-36"
         />
 
-        <div className="team-shell team-shell-wide relative flex min-h-[76svh] w-full flex-col py-8 sm:min-h-[72svh] sm:py-10 md:py-12">
+        <div className="team-shell relative flex min-h-[480px] w-full flex-col py-8 sm:min-h-[72svh] sm:py-10 md:py-16">
           {/* Text block centered in the space above the progress bars. */}
           <div className="flex flex-1 items-center">
             <div className="hero-slides grid w-full">
@@ -172,7 +148,7 @@ export function Hero({
                   }
                   className="hero-slide"
                 >
-                  <div className="team-shell team-shell-wide flex w-full">
+                  <div className="team-shell flex w-full">
                     <div className="flex max-w-[780px] flex-col gap-3 text-white lg:max-w-[600px] xl:max-w-[660px]">
                       <p className="text-[12px] font-semibold tracking-[0.12em] text-white uppercase">
                         {slide.kicker}
@@ -228,4 +204,28 @@ export function Hero({
       </div>
     </section>
   );
+}
+
+function buildSlides(copy: HeroCopy, historyIntro: string): Slide[] {
+  return [
+    {
+      kicker: copy.badge,
+      headline: copy.headline,
+      subline: copy.intro,
+      primary: { label: copy.ctaPlayers, href: routes.site.roster },
+      secondary: { label: copy.ctaHistory, href: routes.site.history },
+    },
+    {
+      kicker: `${copy.aubl.title} · 2026–2027`,
+      headline: copy.aubl.title,
+      subline: copy.aubl.text,
+      primary: { label: copy.ctaHistory, href: routes.site.history },
+    },
+    {
+      kicker: "Түүх · 1992–2026",
+      headline: "1992 оноос өнөөдрийг хүртэл",
+      subline: historyIntro,
+      primary: { label: "Түүхийг үзэх", href: routes.site.history },
+    },
+  ];
 }

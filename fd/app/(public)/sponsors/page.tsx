@@ -5,7 +5,7 @@ import { PageHero } from "@/components/team/page-hero";
 import { TeamButton } from "@/components/team/button";
 import { ThanksSection } from "@/components/team/thanks-section";
 import { routes } from "@/config/routes";
-import { thanks } from "@/content/site";
+import { getThanks } from "@/lib/content";
 
 export const metadata: Metadata = {
   description:
@@ -13,8 +13,23 @@ export const metadata: Metadata = {
   title: "Дэмжигчид",
 };
 
-export default function SponsorsPage() {
-  const sponsors = thanks.sponsors.filter((sponsor) => sponsor !== "FORZA");
+export const revalidate = 60;
+
+/** The kit maker gets its own band (with the merch link) instead of a tile. */
+const KIT_PARTNER = "FORZA";
+
+/**
+ * Sponsors: one tile per partner from the admin-edited list (Нүүр →
+ * Талархлын хэсэг), the kit-maker band, then the shared thank-you band.
+ */
+export default async function SponsorsPage() {
+  const thanks = await getThanks();
+  const hasKitPartner = thanks.sponsors.some(
+    (sponsor) => sponsor.toUpperCase() === KIT_PARTNER,
+  );
+  const sponsors = thanks.sponsors.filter(
+    (sponsor) => sponsor.toUpperCase() !== KIT_PARTNER,
+  );
 
   return (
     <>
@@ -25,7 +40,7 @@ export default function SponsorsPage() {
       />
 
       <section aria-labelledby="sponsors-heading" className="bg-paper">
-        <div className="team-shell py-14 md:py-20">
+        <div className="team-shell py-12 md:py-16">
           <Reveal>
             <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
               <div>
@@ -49,37 +64,39 @@ export default function SponsorsPage() {
                 key={sponsor}
                 as="li"
                 delay={index * 60}
-                className="border-line bg-paper-soft group hover:bg-ink flex min-h-40 items-end border p-6 transition-colors duration-200 hover:text-white"
+                className="border-line bg-paper-soft text-ink flex min-h-40 items-end rounded-lg border p-6"
               >
-                <span className="font-display text-[clamp(22px,2.4vw,30px)] font-bold tracking-[0.04em] uppercase">
+                <span className="font-display text-[clamp(22px,2.4vw,30px)] font-bold tracking-[0.02em] uppercase">
                   {sponsor}
                 </span>
               </Reveal>
             ))}
           </ul>
 
-          <Reveal delay={240}>
-            <div className="border-line bg-paper-soft mt-6 grid gap-8 border p-6 md:grid-cols-[1fr_auto] md:items-center md:p-8">
-              <div>
-                <p className="eyebrow">
-                  АЛБАН ЁСНЫ ӨМСГӨЛ, СПОРТ ХУВЦАСНЫ ҮЙЛДВЭРЛЭГЧ
-                </p>
-                <h3 className="font-display text-ink mt-3 text-[clamp(28px,4vw,40px)] leading-none font-bold tracking-[0.04em] uppercase">
-                  FORZA
-                </h3>
-                <p className="text-mute mt-3 max-w-2xl text-sm leading-[1.7]">
-                  Багийн өмсгөл болон спорт хувцасны албан ёсны үйлдвэрлэгч.
-                </p>
+          {hasKitPartner ? (
+            <Reveal delay={240}>
+              <div className="border-line bg-paper-soft mt-6 grid gap-8 rounded-lg border p-6 md:grid-cols-[1fr_auto] md:items-center md:p-8">
+                <div>
+                  <p className="eyebrow">
+                    АЛБАН ЁСНЫ ӨМСГӨЛ, СПОРТ ХУВЦАСНЫ ҮЙЛДВЭРЛЭГЧ
+                  </p>
+                  <h3 className="font-display text-ink mt-3 text-[clamp(28px,4vw,40px)] leading-none font-bold tracking-[0.02em] uppercase">
+                    FORZA
+                  </h3>
+                  <p className="text-mute mt-3 max-w-2xl text-sm leading-[1.7]">
+                    Багийн өмсгөл болон спорт хувцасны албан ёсны үйлдвэрлэгч.
+                  </p>
+                </div>
+                <TeamButton variant="secondary" href={routes.site.fanClub}>
+                  Мерч дэлгүүр
+                </TeamButton>
               </div>
-              <TeamButton variant="outline" href={routes.site.fanClub}>
-                Мерч дэлгүүр
-              </TeamButton>
-            </div>
-          </Reveal>
+            </Reveal>
+          ) : null}
         </div>
       </section>
 
-      <ThanksSection />
+      <ThanksSection thanks={thanks} />
     </>
   );
 }

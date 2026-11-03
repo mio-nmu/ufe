@@ -26,23 +26,6 @@ interface MeEnvelope {
   data?: { user?: { role?: unknown } };
 }
 
-/** Forwards the caller's Bearer token to bd; fails closed when bd is down. */
-async function verifyAdmin(token: string): Promise<boolean> {
-  let response: Response;
-  try {
-    response = await fetch(`${env.apiUrl}/api/v1/user/auth/me`, {
-      cache: "no-store",
-      headers: { Authorization: `Bearer ${token}` },
-      signal: AbortSignal.timeout(5000),
-    });
-  } catch {
-    return false; // backend unreachable — no purge
-  }
-  if (!response.ok) return false;
-  const body = (await response.json().catch(() => null)) as MeEnvelope | null;
-  return body?.success === true && body.data?.user?.role === "ADMIN";
-}
-
 export async function POST(request: NextRequest): Promise<Response> {
   const token = request.headers
     .get("authorization")
@@ -85,4 +68,21 @@ export async function POST(request: NextRequest): Promise<Response> {
     revalidatePath("/schedule", "page");
   }
   return Response.json({ revalidated: true, tag: tagName });
+}
+
+/** Forwards the caller's Bearer token to bd; fails closed when bd is down. */
+async function verifyAdmin(token: string): Promise<boolean> {
+  let response: Response;
+  try {
+    response = await fetch(`${env.apiUrl}/api/v1/user/auth/me`, {
+      cache: "no-store",
+      headers: { Authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(5000),
+    });
+  } catch {
+    return false; // backend unreachable — no purge
+  }
+  if (!response.ok) return false;
+  const body = (await response.json().catch(() => null)) as MeEnvelope | null;
+  return body?.success === true && body.data?.user?.role === "ADMIN";
 }

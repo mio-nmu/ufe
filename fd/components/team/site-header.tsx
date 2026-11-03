@@ -17,7 +17,14 @@ import { cn } from "@/lib/utils";
  * right (280ms ease-out). Nav links get a 2px underline that grows from the
  * left on hover (180ms).
  */
-export function SiteHeader() {
+export function SiteHeader({
+  logo,
+  siteName,
+}: {
+  /** Admin-uploaded logo (Cloudinary); the bundled mark when unset. */
+  logo?: string | null;
+  siteName?: string | null;
+}) {
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -43,35 +50,19 @@ export function SiteHeader() {
   return (
     <>
       {/* Utility bar scrolls away; the navigation stays pinned. */}
-      <div className="bg-ink text-paper hidden overflow-hidden md:block">
-        <div className="w-full overflow-hidden">
-          <div
-            className="utility-ticker flex h-10 items-center"
-            aria-label={`${siteConfig.university} · AUBL 2026–2027`}
+      <div className="bg-ink text-paper hidden md:block">
+        <div className="team-shell flex h-10 items-center justify-between">
+          <a
+            href="https://ufe.edu.mn"
+            target="_blank"
+            rel="noreferrer"
+            className="team-focus text-[12px] font-medium tracking-[0.12em] text-white uppercase transition-opacity [--focus-ring:#fff] hover:opacity-70"
           >
-            <div className="utility-ticker__track flex">
-              {[false, true].map((duplicate) => (
-                <div
-                  key={String(duplicate)}
-                  aria-hidden={duplicate || undefined}
-                  className="utility-ticker__group flex shrink-0 items-center justify-between"
-                >
-                  <a
-                    href="https://ufe.edu.mn"
-                    target="_blank"
-                    rel="noreferrer"
-                    tabIndex={duplicate ? -1 : undefined}
-                    className="team-focus text-[12px] font-medium tracking-[0.12em] text-white uppercase transition-opacity hover:opacity-70"
-                  >
-                    {siteConfig.university}
-                  </a>
-                  <span className="text-[12px] font-medium tracking-[0.12em] text-white/60 uppercase">
-                    AUBL 2026–2027
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
+            {siteConfig.university}
+          </a>
+          <span className="text-[12px] font-medium tracking-[0.12em] text-white/60 uppercase">
+            AUBL 2026–2027
+          </span>
         </div>
       </div>
 
@@ -85,17 +76,17 @@ export function SiteHeader() {
               aria-label={`${siteConfig.name} — нүүр хуудас`}
             >
               <Image
-                src="/ufe-logo.png"
-                alt="UFE Broncos"
+                src={logo ?? "/ufe-logo.png"}
+                alt=""
                 width={48}
                 height={48}
-                className="relative z-10 size-10 shrink-0 md:size-12"
+                className="relative z-10 size-10 shrink-0 object-contain md:size-12"
               />
               <span className="flex min-w-0 flex-col leading-none">
-                <span className="font-display text-base font-bold tracking-[0.04em] text-white uppercase sm:text-lg">
-                  СЭЗИС
+                <span className="font-display text-base font-bold tracking-[0.02em] text-white uppercase sm:text-lg">
+                  {siteName ?? "СЭЗИС"}
                 </span>
-                <span className="hidden max-w-[132px] truncate text-[9px] font-medium tracking-[0.16em] text-white/70 uppercase sm:block lg:max-w-[144px]">
+                <span className="hidden max-w-[132px] truncate text-[12px] font-medium tracking-[0.12em] text-white/70 uppercase sm:block lg:hidden xl:block xl:max-w-[144px]">
                   {siteConfig.headerSubtitle}
                 </span>
               </span>
@@ -103,7 +94,7 @@ export function SiteHeader() {
 
             <nav
               aria-label="Үндсэн цэс"
-              className="absolute left-1/2 hidden min-w-0 -translate-x-1/2 items-center justify-center gap-4 lg:flex xl:gap-6"
+              className="hidden min-w-0 flex-1 items-center justify-center gap-3 lg:flex xl:absolute xl:left-1/2 xl:flex-none xl:-translate-x-1/2 xl:gap-6"
             >
               {publicNav.map((item) => (
                 <Link
@@ -111,7 +102,7 @@ export function SiteHeader() {
                   href={item.href}
                   aria-current={isActive(item.href) ? "page" : undefined}
                   className={cn(
-                    "font-display nav-underline team-focus flex h-full shrink-0 items-center px-1 text-sm font-semibold tracking-[0.04em] whitespace-nowrap uppercase transition-colors",
+                    "font-display nav-underline team-focus flex h-full shrink-0 items-center px-1 text-sm font-semibold tracking-[0.02em] whitespace-nowrap uppercase transition-colors",
                     isActive(item.href)
                       ? "text-white"
                       : "text-white/70 hover:text-white",
@@ -157,7 +148,7 @@ export function SiteHeader() {
         aria-hidden={!menuOpen}
       >
         <div className="team-shell flex h-14 items-center justify-between border-b border-white/20">
-          <span className="font-display text-lg font-bold tracking-[0.04em] text-white uppercase">
+          <span className="font-display text-lg font-bold tracking-[0.02em] text-white uppercase">
             СЭЗИС
           </span>
           <button

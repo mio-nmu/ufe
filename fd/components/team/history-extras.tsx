@@ -4,28 +4,10 @@ import { useCallback, useEffect, useState } from "react";
 import Image from "next/image";
 import { ArrowLeft, ArrowRight, Download, Share2, X } from "lucide-react";
 
-import { TeamButton } from "@/components/team/button";
+import { TeamButton, teamIconButtonClass } from "@/components/team/button";
 import { Reveal } from "@/components/team/reveal";
 import type { TuuhPhotos } from "@/components/team/history-experience";
 import { routes } from "@/config/routes";
-
-interface Moment {
-  /** Display label — the archive folder name (single year or year range). */
-  label: string;
-  src: string;
-}
-
-/** Archive photos from the history-photos content API, oldest first. */
-function buildMoments(photosByFolder: TuuhPhotos): Moment[] {
-  return Object.keys(photosByFolder)
-    .sort()
-    .flatMap((folder) =>
-      photosByFolder[folder].map((src) => ({
-        label: folder.replace("-", "–"),
-        src,
-      })),
-    );
-}
 
 /** Honour roll derived from the timeline: count + title + year span. */
 const HONORS = [
@@ -34,6 +16,12 @@ const HONORS = [
   { count: "3×", title: "Elite 8", years: "2017–2020" },
   { count: "2×", title: "Final 4", years: "2021–2023" },
 ] as const;
+
+interface Moment {
+  /** Display label — the archive folder name (single year or year range). */
+  label: string;
+  src: string;
+}
 
 /**
  * History-page extras below the side-scrolling timeline: the honour roll
@@ -53,7 +41,7 @@ export function HistoryExtras({
     <>
       {/* Honour roll — dark cards, 140px count watermark */}
       <section aria-label="Багийн хүндэтгэл" className="bg-paper">
-        <div className="team-shell py-16 md:py-24">
+        <div className="team-shell py-12 md:py-16">
           <Reveal>
             <h2 className="font-display text-ink text-[clamp(30px,4vw,40px)] leading-none font-bold tracking-[0.02em] uppercase">
               Амжилтууд
@@ -86,7 +74,7 @@ export function HistoryExtras({
 
       {/* Moments gallery — chronological grid + lightbox */}
       <section aria-label="Дурсамжийн зургууд" className="border-line border-t">
-        <div className="team-shell py-16 md:py-24">
+        <div className="team-shell py-12 md:py-16">
           <Reveal>
             <div className="mb-8 flex flex-wrap items-baseline justify-between gap-4">
               <h2 className="font-display text-ink text-[clamp(30px,4vw,40px)] leading-none font-bold tracking-[0.02em] uppercase">
@@ -117,7 +105,7 @@ export function HistoryExtras({
                   {aubl.text}
                 </p>
               </div>
-              <TeamButton variant="dark" href={routes.site.roster}>
+              <TeamButton variant="inverse" href={routes.site.roster}>
                 Тоглогчид
               </TeamButton>
             </div>
@@ -126,6 +114,18 @@ export function HistoryExtras({
       </section>
     </>
   );
+}
+
+/** Archive photos from the history-photos content API, oldest first. */
+function buildMoments(photosByFolder: TuuhPhotos): Moment[] {
+  return Object.keys(photosByFolder)
+    .sort()
+    .flatMap((folder) =>
+      photosByFolder[folder].map((src) => ({
+        label: folder.replace("-", "–"),
+        src,
+      })),
+    );
 }
 
 function MomentsGallery({ moments }: { moments: Moment[] }) {
@@ -186,17 +186,17 @@ function MomentsGallery({ moments }: { moments: Moment[] }) {
             aria-label={`${moment.label} оны зургийг томруулах`}
             className="team-focus group block w-full text-left"
           >
-            <div className="border-line relative overflow-hidden border">
+            <div className="border-line relative overflow-hidden rounded-lg border">
               <div className="relative aspect-[3/2] w-full">
                 <Image
                   src={moment.src}
                   alt={`СЭЗИС-ийн шигшээ багийн ${moment.label} оны дурсамжийн зураг`}
                   fill
                   sizes="(min-width: 1024px) 30vw, (min-width: 640px) 45vw, 90vw"
-                  className="object-cover transition-transform duration-[400ms] group-hover:scale-[1.04]"
+                  className="object-cover transition-transform duration-300 group-hover:scale-[1.03]"
                 />
               </div>
-              <span className="bg-ink text-paper absolute bottom-3 left-3 px-2 py-1 text-[11px] font-semibold tracking-[0.12em] uppercase">
+              <span className="bg-ink text-paper absolute bottom-3 left-3 px-2 py-1 text-[12px] font-semibold tracking-[0.12em] uppercase">
                 {moment.label}
               </span>
             </div>
@@ -213,7 +213,7 @@ function MomentsGallery({ moments }: { moments: Moment[] }) {
           className="fixed inset-0 z-50 flex flex-col bg-[rgb(11_11_12/0.94)] p-4"
         >
           <div className="flex items-center justify-between text-white">
-            <p className="font-display text-lg font-bold tracking-[0.08em] uppercase">
+            <p className="font-display text-lg font-bold tracking-[0.06em] uppercase">
               {active.label}
             </p>
             <div className="flex items-center gap-2">
@@ -224,7 +224,7 @@ function MomentsGallery({ moments }: { moments: Moment[] }) {
                 href={active.src}
                 download
                 aria-label="Зургийг татах"
-                className="team-focus hover:text-ink flex size-11 items-center justify-center border border-white/30 transition-colors hover:border-white hover:bg-white"
+                className={teamIconButtonClass({ tone: "dark" })}
               >
                 <Download className="size-5" aria-hidden="true" />
               </a>
@@ -232,7 +232,7 @@ function MomentsGallery({ moments }: { moments: Moment[] }) {
                 type="button"
                 onClick={share}
                 aria-label="Хуваалцах"
-                className="team-focus hover:text-ink flex size-11 items-center justify-center border border-white/30 transition-colors hover:border-white hover:bg-white"
+                className={teamIconButtonClass({ tone: "dark" })}
               >
                 <Share2 className="size-5" aria-hidden="true" />
               </button>
@@ -240,7 +240,7 @@ function MomentsGallery({ moments }: { moments: Moment[] }) {
                 type="button"
                 onClick={() => setOpenIndex(null)}
                 aria-label="Хаах"
-                className="team-focus hover:text-ink flex size-11 items-center justify-center border border-white/30 transition-colors hover:border-white hover:bg-white"
+                className={teamIconButtonClass({ tone: "dark" })}
               >
                 <X className="size-5" aria-hidden="true" />
               </button>
@@ -260,7 +260,7 @@ function MomentsGallery({ moments }: { moments: Moment[] }) {
               type="button"
               onClick={() => move(-1)}
               aria-label="Өмнөх зураг"
-              className="team-focus hover:text-ink flex size-11 items-center justify-center border border-white/30 text-white transition-colors hover:border-white hover:bg-white"
+              className={teamIconButtonClass({ tone: "dark" })}
             >
               <ArrowLeft className="size-5" aria-hidden="true" />
             </button>
@@ -268,7 +268,7 @@ function MomentsGallery({ moments }: { moments: Moment[] }) {
               type="button"
               onClick={() => move(1)}
               aria-label="Дараагийн зураг"
-              className="team-focus hover:text-ink flex size-11 items-center justify-center border border-white/30 text-white transition-colors hover:border-white hover:bg-white"
+              className={teamIconButtonClass({ tone: "dark" })}
             >
               <ArrowRight className="size-5" aria-hidden="true" />
             </button>

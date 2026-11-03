@@ -1,6 +1,3 @@
-"use client";
-
-import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 
@@ -11,10 +8,10 @@ import type { Executive, ExecutiveGroup } from "@/types/content";
 import { cn } from "@/lib/utils";
 
 /**
- * Front office directory: sticky 48px tab bar (Ownership / Basketball ops /
- * Business / Coaches) and 392×440 executive cards whose grayscale portraits
- * resolve to color on hover (300ms). Each card links to the member's own
- * profile page (/front-office/[slug]) — same treatment as the roster.
+ * Front office directory: every group with members gets its own section
+ * (heading + count + card grid), stacked in GROUPS order, so the whole
+ * staff is visible without clicking through tabs. Portraits are always
+ * full colour; each card links to the member's profile (/front-office/[slug]).
  */
 
 const GROUPS: Array<{ value: ExecutiveGroup; label: string }> = [
@@ -25,96 +22,48 @@ const GROUPS: Array<{ value: ExecutiveGroup; label: string }> = [
   { value: "STAFF", label: "Ажилтнууд" },
 ];
 
-const GROUP_LABEL: Record<ExecutiveGroup, string> = Object.fromEntries(
-  GROUPS.map((group) => [group.value, group.label]),
-) as Record<ExecutiveGroup, string>;
-
-/** Giant faded card initials ("Б.Пүрэвдорж" → "БП"). */
-function initialsOf(name: string): string {
-  return name
-    .split(/[.\s]+/)
-    .filter(Boolean)
-    .map((part) => part[0]!)
-    .slice(0, 2)
-    .join("")
-    .toUpperCase();
-}
-
 export function FrontOfficeDirectory({ members }: { members: Executive[] }) {
-  const available = GROUPS.filter((group) =>
-    members.some((member) => member.group === group.value),
-  );
-  const [tab, setTab] = useState<ExecutiveGroup>(
-    available[0]?.value ?? "OWNERSHIP",
-  );
-  const groupMembers = members.filter((member) => member.group === tab);
+  const groups = GROUPS.map((group) => ({
+    ...group,
+    members: members.filter((member) => member.group === group.value),
+  })).filter((group) => group.members.length > 0);
 
   return (
-    <>
-      {/* Sticky tab bar — docks directly below the pinned 72px site header. */}
-      <div className="border-line bg-paper sticky top-[72px] z-30 border-b">
-        <div className="team-shell flex h-12 items-stretch gap-6 overflow-x-auto md:gap-8">
-          {available.map((group) => {
-            const active = group.value === tab;
-            return (
-              <button
-                key={group.value}
-                type="button"
-                onClick={() => setTab(group.value)}
-                aria-current={active ? "true" : undefined}
-                className={cn(
-                  "font-display team-focus relative flex shrink-0 items-center text-lg font-semibold tracking-[0.02em] uppercase transition-colors md:text-xl",
-                  active ? "text-ink" : "text-mute hover:text-ink",
-                )}
-              >
-                {group.label}
-                <span
-                  aria-hidden="true"
-                  className={cn(
-                    "bg-ink absolute inset-x-0 bottom-0 h-[3px] transition-opacity",
-                    active ? "opacity-100" : "opacity-0",
-                  )}
-                />
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Executive cards */}
-      <section className="team-shell py-12 md:py-16">
-        <div className="mb-8 flex flex-wrap items-baseline justify-between gap-4">
-          <h2 className="font-display text-ink text-[clamp(26px,3vw,32px)] font-bold tracking-[0.02em] uppercase">
-            {GROUP_LABEL[tab]}
-          </h2>
-          <span className="text-mute text-[12px] font-semibold tracking-[0.12em] uppercase">
-            {groupMembers.length} гишүүн
-          </span>
-        </div>
-
-        <div
-          key={tab}
-          className="view-swap grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3"
-        >
-          {groupMembers.map((member) => (
-            <ExecutiveCard key={member.id} member={member} />
-          ))}
-        </div>
-      </section>
-    </>
+    <div className="team-shell space-y-14 py-12 md:space-y-16 md:py-16">
+      {groups.map((group) => (
+        <section key={group.value} aria-labelledby={`group-${group.value}`}>
+          <div className="border-line mb-6 flex items-baseline justify-between gap-4 border-b pb-3">
+            <h2
+              id={`group-${group.value}`}
+              className="font-display text-ink text-[clamp(24px,3vw,32px)] leading-none font-bold tracking-[0.02em] uppercase"
+            >
+              {group.label}
+            </h2>
+            <span className="text-mute text-[12px] font-semibold tracking-[0.12em] uppercase">
+              {group.members.length} гишүүн
+            </span>
+          </div>
+          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {group.members.map((member) => (
+              <ExecutiveCard key={member.id} member={member} />
+            ))}
+          </div>
+        </section>
+      ))}
+    </div>
   );
 }
 
 function ExecutiveCard({ member }: { member: Executive }) {
   const hoverPhoto = executiveHoverPhotos[member.slug];
   return (
-    <article className="border-line bg-paper card-lift group relative border">
+    <article className="border-line bg-paper card-lift group relative overflow-hidden rounded-lg border">
       <Link
         href={routes.site.managementMember(member.slug)}
         aria-label={`${member.name} — профайл`}
         className="team-focus block w-full text-left"
       >
-        {/* Portrait panel — 392×320, grayscale resolving to color on hover */}
+        {/* Portrait panel — 392×320, full-colour portrait */}
         <div
           className={cn(
             "relative h-[300px] overflow-hidden md:h-[320px]",
@@ -131,13 +80,10 @@ function ExecutiveCard({ member }: { member: Executive }) {
               </span>
               <div
                 className={cn(
-                  "absolute inset-0 z-[5] transition-[grayscale,opacity,transform] duration-300 group-hover:scale-[1.03]",
-                  hoverPhoto
-                    ? // Base of a hover card: full color, fading out beneath
-                      // the band as the alternate cutout wipes across.
-                      "group-hover:opacity-0 group-hover:delay-200"
-                    : // No alternate photo: keep the grayscale-to-color hover.
-                      "grayscale group-hover:grayscale-0",
+                  "absolute inset-0 z-[5] transition-[opacity,transform] duration-300 group-hover:scale-[1.03]",
+                  // Base of a hover card: fades out beneath the band as the
+                  // alternate cutout wipes across. Always full colour.
+                  hoverPhoto && "group-hover:opacity-0 group-hover:delay-200",
                 )}
               >
                 <Image
@@ -192,7 +138,8 @@ function ExecutiveCard({ member }: { member: Executive }) {
           )}
           <span
             className={cn(
-              "absolute right-3 bottom-3 z-10 px-2 py-1 text-[11px] font-semibold tracking-[0.1em] uppercase opacity-0 transition-opacity duration-200 group-hover:opacity-100",
+              // Always shown on touch screens, which have no hover.
+              "absolute right-3 bottom-3 z-10 px-2 py-1 text-[12px] font-semibold tracking-[0.12em] uppercase transition-opacity duration-200 lg:opacity-0 lg:group-hover:opacity-100",
               member.photo ? "bg-ink text-paper" : "bg-paper text-ink",
             )}
           >
@@ -215,4 +162,15 @@ function ExecutiveCard({ member }: { member: Executive }) {
       </Link>
     </article>
   );
+}
+
+/** Giant faded card initials ("Б.Пүрэвдорж" → "БП"). */
+function initialsOf(name: string): string {
+  return name
+    .split(/[.\s]+/)
+    .filter(Boolean)
+    .map((part) => part[0]!)
+    .slice(0, 2)
+    .join("")
+    .toUpperCase();
 }

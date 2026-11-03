@@ -1,6 +1,6 @@
 import {
   BarChart3,
-  ClipboardList,
+  CalendarDays,
   FileText,
   Images,
   Info,
@@ -34,11 +34,12 @@ export const userNav: NavItem[] = [
 ];
 
 /** Admin sidebar — English paths, Mongolian labels, grouped in sections. */
-export const adminNavSections: NavSection[] = [
+const adminNavSections: NavSection[] = [
   {
     items: [
       { href: routes.admin.dashboard, label: "Хяналт", icon: BarChart3 },
       { href: routes.admin.scorer, label: "Live scorer", icon: Timer },
+      { href: routes.admin.games, label: "Тоглолтууд", icon: CalendarDays },
     ],
   },
   {
@@ -50,7 +51,6 @@ export const adminNavSections: NavSection[] = [
       { href: routes.admin.gallery, label: "Галерей", icon: Images },
       { href: routes.admin.videos, label: "Бичлэгүүд", icon: Video },
       { href: routes.admin.shop, label: "Дэлгүүр", icon: ShoppingBag },
-      { href: routes.admin.orders, label: "Захиалгууд", icon: ClipboardList },
       { href: routes.admin.news, label: "Мэдээ", icon: Newspaper },
     ],
   },

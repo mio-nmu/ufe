@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
-
 import { Hero, type HeroCopy } from "@/components/team/hero";
 import { HomeGallery, getHomeGallery } from "@/components/team/home-gallery";
 import {
@@ -13,9 +12,15 @@ import { Reveal } from "@/components/team/reveal";
 import { ScheduleStrip } from "@/components/team/schedule-strip";
 import { ThanksSection } from "@/components/team/thanks-section";
 import { routes } from "@/config/routes";
-import { featuredNews, hero, history, stats } from "@/content/site";
+import {
+  featuredNews,
+  hero,
+  history,
+  homeTimeline,
+  stats,
+} from "@/content/site";
 import { mergeCopy } from "@/lib/copy";
-import { getGames, getNews, getPageCopy } from "@/lib/content";
+import { getGames, getNews, getPageCopy, getThanks } from "@/lib/content";
 import type { NewsPostRow, PageCopy } from "@/types/content";
 
 export const revalidate = 60;
@@ -25,51 +30,29 @@ interface StatItem {
   label: string;
 }
 
-/** NewsPost rows → home grid cards: featured first, newest next, max 3. */
-function toNewsItems(rows: NewsPostRow[]): NewsItem[] {
-  return [...rows]
-    .sort((a, b) => Number(b.isFeatured) - Number(a.isFeatured))
-    .slice(0, 3)
-    .map((row) => ({
-      body: row.excerpt,
-      kicker: row.category,
-      title: row.title,
-    }));
-}
-
-function statItems(copy: PageCopy | null): StatItem[] {
-  const items = copy?.items;
-  if (!Array.isArray(items) || items.length === 0) {
-    return stats.map((stat) => ({ label: stat.label, value: stat.value }));
-  }
-  return items.filter(
-    (item): item is StatItem =>
-      typeof item === "object" &&
-      item !== null &&
-      typeof (item as StatItem).value === "string" &&
-      typeof (item as StatItem).label === "string",
-  );
-}
-
 export default async function HomePage() {
   const [
     heroCopy,
     statsCopy,
     newsCopy,
     historyCopy,
+    timelineCopy,
     newsRows,
     gameRows,
     spotlight,
     gallery,
+    thanks,
   ] = await Promise.all([
     getPageCopy("home", "hero"),
     getPageCopy("home", "stats"),
     getPageCopy("home", "news"),
     getPageCopy("history", "page"),
+    getPageCopy("home", "timeline"),
     getNews({ limit: 12 }),
     getGames(),
     getHomeSpotlight(),
     getHomeGallery(),
+    getThanks(),
   ]);
 
   const heroData: HeroCopy = mergeCopy(
@@ -120,37 +103,33 @@ export default async function HomePage() {
 
       {/* Latest news — featured card + stacked cards */}
       <section aria-label={newsMeta.label} className="bg-paper">
-        <div className="team-shell team-shell-wide py-10 md:py-14">
+        <div className="team-shell py-12 md:py-16">
           <Reveal>
             <div className="mb-8 flex flex-wrap items-baseline justify-between gap-4">
               <h2 className="font-display text-brand text-[clamp(30px,4vw,40px)] leading-none font-bold tracking-[0.02em] uppercase">
                 {newsMeta.heading}
               </h2>
               <Link
-                href={routes.site.schedule}
-                className="group flex min-h-11 items-center gap-1.5 text-[12px] font-semibold tracking-[0.12em] text-[#174a45] uppercase transition-colors hover:text-[#0f3632]"
+                href={routes.site.news}
+                className="group text-brand hover:text-brand-2 team-focus flex min-h-11 items-center gap-1.5 text-[12px] font-semibold tracking-[0.12em] uppercase transition-colors"
               >
-                Бүх тоглолт
+                Бүх мэдээ
                 <ArrowRight
-                  className="size-4 transition-transform group-hover:translate-x-1"
+                  className="size-4 transition-transform group-hover:translate-x-0.5"
                   aria-hidden="true"
                 />
               </Link>
             </div>
           </Reveal>
           <Reveal delay={60}>
-            <NewsGrid
-              items={newsItems}
-              label={newsMeta.label}
-              latestGame={latestGame}
-            />
+            <NewsGrid items={newsItems} latestGame={latestGame} />
           </Reveal>
         </div>
       </section>
 
       {/* Numbers rail — big condensed stats, centered with breathing room */}
       <section aria-label="Тоонууд" className="border-brand bg-brand border-y">
-        <div className="team-shell team-shell-wide grid grid-cols-2 gap-x-12 gap-y-10 py-14 md:grid-cols-4 md:gap-x-16 md:py-16">
+        <div className="team-shell grid grid-cols-2 gap-x-12 gap-y-10 py-12 md:grid-cols-4 md:gap-x-16 md:py-16">
           {numbers.map((stat, index) => (
             <Reveal
               key={stat.label}
@@ -168,13 +147,43 @@ export default async function HomePage() {
         </div>
       </section>
 
-      <HomeTimeline />
+      <HomeTimeline copy={mergeCopy(homeTimeline, timelineCopy)} />
 
       {/* Team leaders (captain + coaches), the photo mosaic and the
           gratitude band close out the page above the footer. */}
       {spotlight.length > 0 ? <HomeSpotlight members={spotlight} /> : null}
       <HomeGallery tiles={gallery} />
-      <ThanksSection tone="paper" />
+      <ThanksSection thanks={thanks} tone="paper" />
     </>
   );
+}
+
+function statItems(copy: PageCopy | null): StatItem[] {
+  const items = copy?.items;
+  if (!Array.isArray(items) || items.length === 0) {
+    return stats.map((stat) => ({ label: stat.label, value: stat.value }));
+  }
+  return items.filter(
+    (item): item is StatItem =>
+      typeof item === "object" &&
+      item !== null &&
+      typeof (item as StatItem).value === "string" &&
+      typeof (item as StatItem).label === "string",
+  );
+}
+
+/** NewsPost rows (newest first from the API) → home grid cards: featured
+ *  posts first, then newest, max 3, each linking to its article. */
+function toNewsItems(rows: NewsPostRow[]): NewsItem[] {
+  return [...rows]
+    .sort((a, b) => Number(b.isFeatured) - Number(a.isFeatured))
+    .slice(0, 3)
+    .map((row) => ({
+      body: row.excerpt,
+      image: row.coverImage,
+      kicker: row.category,
+      publishedAt: row.publishedAt,
+      slug: row.slug,
+      title: row.title,
+    }));
 }

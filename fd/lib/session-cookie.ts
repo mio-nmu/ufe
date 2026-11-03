@@ -12,12 +12,6 @@ import type { User } from "@/types/api";
  */
 const SESSION_COOKIE = "uf_session";
 
-function secureSuffix(): string {
-  return typeof window !== "undefined" && window.location.protocol === "https:"
-    ? "; Secure"
-    : "";
-}
-
 export function setSessionHint(user: Pick<User, "id" | "role">): void {
   if (typeof document === "undefined") return;
   const value = encodeURIComponent(
@@ -29,4 +23,10 @@ export function setSessionHint(user: Pick<User, "id" | "role">): void {
 export function clearSessionHint(): void {
   if (typeof document === "undefined") return;
   document.cookie = `${SESSION_COOKIE}=; Path=/; Max-Age=0; SameSite=Lax${secureSuffix()}`;
+}
+
+function secureSuffix(): string {
+  return typeof window !== "undefined" && window.location.protocol === "https:"
+    ? "; Secure"
+    : "";
 }

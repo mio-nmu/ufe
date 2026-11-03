@@ -25,11 +25,6 @@ export function playerHref(player: Pick<RosterPlayer, "slug">): string {
   return `/players/${player.slug}`;
 }
 
-/** Uppercase base position ("Center · Double-double machine" → "CENTER"). */
-export function basePosition(position: string) {
-  return position.split("·")[0]!.trim();
-}
-
 /** Position group for the filter pills ("Point Guard" → "guard"). */
 export function positionGroup(
   position: string,
@@ -38,6 +33,11 @@ export function positionGroup(
   if (base.includes("guard")) return "guard";
   if (base.includes("forward")) return "forward";
   return "center";
+}
+
+/** Uppercase base position ("Center · Double-double machine" → "CENTER"). */
+export function basePosition(position: string) {
+  return position.split("·")[0]!.trim();
 }
 
 /** Stacked Mongolian name: first word over the rest, NBA-card style. */

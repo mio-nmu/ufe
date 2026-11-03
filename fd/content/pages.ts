@@ -247,10 +247,6 @@ export const photosFallback: MediaAlbumRow[] = [
   },
 ];
 
-export const photosHeroFallback = {
-  intro: "Тоглолт, нийгмийн ажил, арга хэмжээний галерейнууд.",
-};
-
 // ── Видео (videos) ───────────────────────────────────────────────────────────
 
 function vid(
@@ -344,10 +340,6 @@ export const videosFallback: VideoRow[] = [
   ),
 ];
 
-export const videosHeroFallback = {
-  intro: "Онцлох мийчлүүд, ярилцлага, ар талын амьдрал.",
-};
-
 // ── Медиа (combined photos + videos page) ─────────────────────────────────────
 
 export const mediaHeroFallback = {
@@ -364,8 +356,7 @@ export const fanClubFallback = {
   heroImage: "",
   promos: [
     "Шинэ хотын загварын өмсгөл захиалгаар",
-    "Аваргын бүтээгдэхүүн — 20% хямдралтай",
-    "Фэн клабын гишүүн болвол илүү олон давуу тал",
+    "Албан ёсны FORZA бүтээгдэхүүн",
   ],
   subtitle: "Албан ёсны бүтээгдэхүүн — FORZA үйлдвэрлэлтэй",
   title: "СЭЗИС мерч",

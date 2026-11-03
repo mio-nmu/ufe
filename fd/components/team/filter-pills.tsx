@@ -42,7 +42,7 @@ export function FilterPills<T extends string>({
               "font-display team-focus inline-flex items-center justify-center rounded-full border font-semibold tracking-[0.06em] uppercase transition-colors",
               size === "md"
                 ? "min-h-9 px-4 text-[13px]"
-                : "min-h-7 px-2.5 text-[11px]",
+                : "min-h-7 px-2.5 text-[12px]",
               active
                 ? "border-ink bg-ink/5 text-ink"
                 : "border-line text-mute hover:border-ink hover:text-ink",

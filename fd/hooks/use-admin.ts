@@ -46,3 +46,15 @@ export function useSetUserStatus() {
     },
   });
 }
+
+export function useSetUserRole() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ id, role }: { id: string; role: "ADMIN" | "USER" }) =>
+      adminUsersService.setUserRole(id, role),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: adminKeys.all });
+    },
+  });
+}

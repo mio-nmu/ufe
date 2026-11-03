@@ -27,8 +27,6 @@ const TYPE_FILTERS = [
   { value: "videos", label: "Бичлэгүүд" },
 ] as const;
 
-type TypeFilter = (typeof TYPE_FILTERS)[number]["value"];
-
 const ALBUM_CATEGORIES: Record<MediaAlbumRow["category"], string> = {
   COMMUNITY: "Нийгмийн",
   EVENTS: "Арга хэмжээ",
@@ -42,45 +40,11 @@ const VIDEO_CATEGORIES: Record<VideoRow["category"], string> = {
   PRESS: "Хэвлэл",
 };
 
+type TypeFilter = (typeof TYPE_FILTERS)[number]["value"];
+
 type BoardItem =
   | { kind: "album"; key: string; date: number; album: MediaAlbumRow }
   | { kind: "video"; key: string; date: number; video: VideoRow };
-
-function formatDuration(seconds: number | null): string {
-  if (seconds === null) return "";
-  const m = Math.floor(seconds / 60);
-  const s = seconds % 60;
-  return `${m}:${String(s).padStart(2, "0")}`;
-}
-
-function formatDate(iso: string | null): string {
-  if (!iso) return "";
-  return new Intl.DateTimeFormat("en-GB", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  })
-    .format(new Date(iso))
-    .toUpperCase();
-}
-
-/** Newest first across both media types; undated items sink to the end. */
-function buildItems(albums: MediaAlbumRow[], videos: VideoRow[]): BoardItem[] {
-  return [
-    ...albums.map((album) => ({
-      kind: "album" as const,
-      key: `album-${album.id}`,
-      date: album.eventDate ? new Date(album.eventDate).getTime() : 0,
-      album,
-    })),
-    ...videos.map((video) => ({
-      kind: "video" as const,
-      key: `video-${video.id}`,
-      date: video.publishedAt ? new Date(video.publishedAt).getTime() : 0,
-      video,
-    })),
-  ].sort((a, b) => b.date - a.date);
-}
 
 export function MediaBoard({
   albums,
@@ -163,12 +127,22 @@ export function MediaBoard({
   );
 }
 
-function KindTag({ children }: { children: React.ReactNode }) {
-  return (
-    <span className="bg-paper/90 text-ink absolute top-2 left-2 px-2 py-0.5 text-[10px] font-semibold tracking-[0.08em] uppercase">
-      {children}
-    </span>
-  );
+/** Newest first across both media types; undated items sink to the end. */
+function buildItems(albums: MediaAlbumRow[], videos: VideoRow[]): BoardItem[] {
+  return [
+    ...albums.map((album) => ({
+      kind: "album" as const,
+      key: `album-${album.id}`,
+      date: album.eventDate ? new Date(album.eventDate).getTime() : 0,
+      album,
+    })),
+    ...videos.map((video) => ({
+      kind: "video" as const,
+      key: `video-${video.id}`,
+      date: video.publishedAt ? new Date(video.publishedAt).getTime() : 0,
+      video,
+    })),
+  ].sort((a, b) => b.date - a.date);
 }
 
 function AlbumCard({
@@ -188,7 +162,7 @@ function AlbumCard({
         aria-label={`${album.title} галерей нээх`}
         className="team-focus block w-full text-left"
       >
-        <div className="border-line bg-paper-soft relative aspect-video overflow-hidden border">
+        <div className="border-line bg-paper-soft relative aspect-video overflow-hidden rounded-lg border">
           {album.coverImage ? (
             <Image
               src={album.coverImage}
@@ -203,7 +177,7 @@ function AlbumCard({
             </span>
           )}
           <KindTag>Зураг</KindTag>
-          <span className="bg-ink text-paper absolute right-2 bottom-2 px-2 py-0.5 text-[11px] font-semibold tracking-[0.06em]">
+          <span className="bg-ink text-paper absolute right-2 bottom-2 rounded-full px-2 py-0.5 text-[12px] font-semibold tracking-[0.06em]">
             {count} фото
           </span>
         </div>
@@ -232,7 +206,7 @@ function VideoCard({ video, onOpen }: { video: VideoRow; onOpen: () => void }) {
         aria-label={`${video.title} тоглуулах`}
         className="team-focus block w-full text-left"
       >
-        <div className="border-line bg-paper-soft relative aspect-video overflow-hidden border">
+        <div className="border-line bg-paper-soft relative aspect-video overflow-hidden rounded-lg border">
           {video.thumbnail || video.youtubeId ? (
             <Image
               src={
@@ -256,7 +230,7 @@ function VideoCard({ video, onOpen }: { video: VideoRow; onOpen: () => void }) {
             />
           </span>
           {video.durationSec ? (
-            <span className="bg-ink text-paper absolute right-2 bottom-2 px-1.5 py-0.5 text-[11px] font-semibold">
+            <span className="bg-ink text-paper absolute right-2 bottom-2 rounded-full px-1.5 py-0.5 text-[12px] font-semibold">
               {formatDuration(video.durationSec)}
             </span>
           ) : null}
@@ -275,6 +249,13 @@ function VideoCard({ video, onOpen }: { video: VideoRow; onOpen: () => void }) {
       </button>
     </article>
   );
+}
+
+function formatDuration(seconds: number | null): string {
+  if (seconds === null) return "";
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return `${m}:${String(s).padStart(2, "0")}`;
 }
 
 /** Ink modal player — same visual language as the album lightbox. */
@@ -307,7 +288,7 @@ function VideoModal({
       role="dialog"
       aria-modal="true"
       aria-label={`${video.title} тоглуулах`}
-      className="fixed inset-0 z-50 flex flex-col bg-[#0B0B0C]/95"
+      className="bg-ink/95 fixed inset-0 z-50 flex flex-col"
     >
       <div className="flex items-center justify-between gap-4 px-6 py-4 text-white">
         <span className="font-display truncate text-xl font-semibold tracking-[0.02em] uppercase">
@@ -363,4 +344,23 @@ function VideoModal({
       </div>
     </div>
   );
+}
+
+function KindTag({ children }: { children: React.ReactNode }) {
+  return (
+    <span className="bg-paper/90 text-ink absolute top-2 left-2 rounded-full px-2 py-0.5 text-[12px] font-semibold tracking-[0.06em] uppercase">
+      {children}
+    </span>
+  );
+}
+
+function formatDate(iso: string | null): string {
+  if (!iso) return "";
+  return new Intl.DateTimeFormat("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  })
+    .format(new Date(iso))
+    .toUpperCase();
 }

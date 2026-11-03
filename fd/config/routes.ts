@@ -11,6 +11,8 @@ export const routes = {
     managementMember: (slug: string) =>
       `/front-office/${encodeURIComponent(slug)}`,
     media: "/media",
+    news: "/news",
+    newsPost: (slug: string) => `/news/${encodeURIComponent(slug)}`,
     roster: "/players",
     schedule: "/schedule",
     sponsors: "/sponsors",
@@ -23,6 +25,7 @@ export const routes = {
   admin: {
     dashboard: "/admin",
     scorer: "/admin/scorer",
+    games: "/admin/games",
     content: "/admin/content",
     players: "/admin/players",
     staff: "/admin/staff",
@@ -30,19 +33,9 @@ export const routes = {
     gallery: "/admin/gallery",
     videos: "/admin/videos",
     shop: "/admin/shop",
-    orders: "/admin/orders",
     news: "/admin/news",
     history: "/admin/history",
     general: "/admin/general",
     users: "/admin/users",
   },
 } as const;
-
-/** Route prefixes that require an authenticated session (see middleware.ts). */
-export const PROTECTED_USER_PREFIXES = [
-  "/dashboard",
-  "/profile",
-  "/settings",
-] as const;
-
-export const ADMIN_PREFIX = "/admin";

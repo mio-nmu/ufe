@@ -62,10 +62,10 @@ export function MediaHero({
       {/* 50% dark overlay */}
       <div aria-hidden="true" className="absolute inset-0 bg-black/50" />
 
-      <div className="team-shell relative z-10 flex min-h-[420px] flex-col items-center justify-center py-16 text-center md:min-h-[540px]">
+      <div className="team-shell relative z-10 flex min-h-[420px] flex-col items-center justify-center py-12 text-center md:min-h-[540px] md:py-16">
         <nav
           aria-label="Breadcrumb"
-          className="mb-4 flex items-center gap-2 text-[12px] font-semibold tracking-[0.14em] text-white/60 uppercase"
+          className="mb-4 flex items-center gap-2 text-[12px] font-semibold tracking-[0.12em] text-white/60 uppercase"
         >
           <Link href="/" className="transition-colors hover:text-white">
             Нүүр

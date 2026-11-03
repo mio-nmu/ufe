@@ -1,5 +1,6 @@
 "use client";
 
+import { buttonVariants } from "@/components/ui/button";
 import { useEffect, useRef, useState } from "react";
 import {
   ChevronLeft,
@@ -25,70 +26,6 @@ import { cn } from "@/lib/utils";
 
 /** Mirrors the backend multer cap (MAX_UPLOAD_MB, default 20). */
 const MAX_UPLOAD_MB = 20;
-
-function validateFile(file: File): string | null {
-  if (!file.type.startsWith("image/")) {
-    return `«${file.name}» зураг биш — зөвхөн зураг хуулна уу.`;
-  }
-  if (file.size > MAX_UPLOAD_MB * 1024 * 1024) {
-    return `«${file.name}» хэт том — ${MAX_UPLOAD_MB}MB хүртэл байх ёстой.`;
-  }
-  return null;
-}
-
-async function uploadImage(file: File): Promise<string> {
-  return uploadAdminImage(file, `upload-${file.name}`);
-}
-
-/** Drop-zone state helper: highlight while dragging, collect image files on drop. */
-function useDropZone(onFiles: (files: File[]) => void, disabled = false) {
-  const [dragging, setDragging] = useState(false);
-  const depth = useRef(0);
-
-  // A drag can end outside the element without a leave event (element
-  // removed, ESC) — clear the highlight when the drag itself finishes.
-  useEffect(() => {
-    if (!dragging) return;
-    const end = () => {
-      depth.current = 0;
-      setDragging(false);
-    };
-    window.addEventListener("dragend", end);
-    window.addEventListener("drop", end);
-    return () => {
-      window.removeEventListener("dragend", end);
-      window.removeEventListener("drop", end);
-    };
-  }, [dragging]);
-
-  return {
-    dragging,
-    handlers: disabled
-      ? {}
-      : {
-          onDragEnter: (event: React.DragEvent) => {
-            event.preventDefault();
-            depth.current += 1;
-            setDragging(true);
-          },
-          onDragOver: (event: React.DragEvent) => event.preventDefault(),
-          onDragLeave: (event: React.DragEvent) => {
-            event.preventDefault();
-            depth.current -= 1;
-            if (depth.current <= 0) setDragging(false);
-          },
-          onDrop: (event: React.DragEvent) => {
-            event.preventDefault();
-            depth.current = 0;
-            setDragging(false);
-            const files = Array.from(event.dataTransfer.files).filter((file) =>
-              file.type.startsWith("image/"),
-            );
-            if (files.length > 0) onFiles(files);
-          },
-        },
-  };
-}
 
 // ─── Single image (cover, portrait, thumbnail…) ─────────────────────────────
 
@@ -155,7 +92,7 @@ export function ImageUploadField({
             }}
           />
         ) : (
-          <span className="text-muted-foreground/60 flex flex-col items-center gap-1 text-[10px] font-medium">
+          <span className="text-muted-foreground/60 flex flex-col items-center gap-1 text-[12px] font-medium">
             <ImageIcon className="size-5" aria-hidden="true" />
             Урьдчилан харах
           </span>
@@ -201,7 +138,7 @@ export function ImageUploadField({
             type="button"
             onClick={() => inputRef.current?.click()}
             disabled={uploading}
-            className="border-input bg-background hover:bg-muted/50 flex h-8 cursor-pointer items-center gap-1.5 rounded-md border px-3 text-xs font-medium transition-colors disabled:opacity-60"
+            className={buttonVariants({ size: "sm", variant: "outline" })}
           >
             {uploading ? (
               <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />
@@ -210,7 +147,7 @@ export function ImageUploadField({
             )}
             {uploading ? "Хуулж байна…" : "Файл сонгох"}
           </button>
-          <span className="text-muted-foreground text-[11px]">
+          <span className="text-muted-foreground text-[12px]">
             Зурган дээр чирж оруулж болно · ≤{MAX_UPLOAD_MB}MB · том зураг
             автоматаар багасгагдана
           </span>
@@ -338,7 +275,7 @@ export function ImagesUploadField({
                 >
                   <ChevronLeft className="size-3.5" aria-hidden="true" />
                 </button>
-                <span className="text-foreground/70 pointer-events-none self-center text-[10px] font-semibold">
+                <span className="text-foreground/70 pointer-events-none self-center text-[12px] font-semibold">
                   {index + 1}
                 </span>
                 <button
@@ -362,7 +299,7 @@ export function ImagesUploadField({
           onClick={() => inputRef.current?.click()}
           disabled={busy}
           className={cn(
-            "border-line text-muted-foreground hover:border-primary/60 hover:text-primary flex aspect-square cursor-pointer flex-col items-center justify-center gap-1 rounded-lg border border-dashed text-[11px] font-medium transition-colors disabled:opacity-60",
+            "border-line text-muted-foreground hover:border-primary/60 hover:text-primary flex aspect-square cursor-pointer flex-col items-center justify-center gap-1 rounded-lg border border-dashed text-[12px] font-medium transition-colors disabled:opacity-60",
             dragging && "border-primary text-primary bg-primary/5",
           )}
         >
@@ -395,7 +332,7 @@ export function ImagesUploadField({
       </div>
 
       <div className="flex items-center justify-between gap-2">
-        <span className="text-muted-foreground text-[11px]">
+        <span className="text-muted-foreground text-[12px]">
           {urls.length > 0
             ? `${urls.length} зураг · хулганаар чирж дарааллыг өөрчилнө · ≤${MAX_UPLOAD_MB}MB · том зураг автоматаар багасгагдана`
             : `Олон зураг зэрэг сонгох боломжтой · ≤${MAX_UPLOAD_MB}MB · том зураг автоматаар багасгагдана`}
@@ -403,7 +340,7 @@ export function ImagesUploadField({
         <button
           type="button"
           onClick={() => setShowUrls((shown) => !shown)}
-          className="text-muted-foreground hover:text-foreground cursor-pointer text-[11px] font-medium underline underline-offset-2"
+          className="text-muted-foreground hover:text-foreground cursor-pointer text-[12px] font-medium underline underline-offset-2"
         >
           {showUrls ? "URL жагсаалт нуух" : "URL-аар нэмэх"}
         </button>
@@ -421,4 +358,68 @@ export function ImagesUploadField({
       ) : null}
     </div>
   );
+}
+
+/** Drop-zone state helper: highlight while dragging, collect image files on drop. */
+function useDropZone(onFiles: (files: File[]) => void, disabled = false) {
+  const [dragging, setDragging] = useState(false);
+  const depth = useRef(0);
+
+  // A drag can end outside the element without a leave event (element
+  // removed, ESC) — clear the highlight when the drag itself finishes.
+  useEffect(() => {
+    if (!dragging) return;
+    const end = () => {
+      depth.current = 0;
+      setDragging(false);
+    };
+    window.addEventListener("dragend", end);
+    window.addEventListener("drop", end);
+    return () => {
+      window.removeEventListener("dragend", end);
+      window.removeEventListener("drop", end);
+    };
+  }, [dragging]);
+
+  return {
+    dragging,
+    handlers: disabled
+      ? {}
+      : {
+          onDragEnter: (event: React.DragEvent) => {
+            event.preventDefault();
+            depth.current += 1;
+            setDragging(true);
+          },
+          onDragOver: (event: React.DragEvent) => event.preventDefault(),
+          onDragLeave: (event: React.DragEvent) => {
+            event.preventDefault();
+            depth.current -= 1;
+            if (depth.current <= 0) setDragging(false);
+          },
+          onDrop: (event: React.DragEvent) => {
+            event.preventDefault();
+            depth.current = 0;
+            setDragging(false);
+            const files = Array.from(event.dataTransfer.files).filter((file) =>
+              file.type.startsWith("image/"),
+            );
+            if (files.length > 0) onFiles(files);
+          },
+        },
+  };
+}
+
+function validateFile(file: File): string | null {
+  if (!file.type.startsWith("image/")) {
+    return `«${file.name}» зураг биш — зөвхөн зураг хуулна уу.`;
+  }
+  if (file.size > MAX_UPLOAD_MB * 1024 * 1024) {
+    return `«${file.name}» хэт том — ${MAX_UPLOAD_MB}MB хүртэл байх ёстой.`;
+  }
+  return null;
+}
+
+async function uploadImage(file: File): Promise<string> {
+  return uploadAdminImage(file, `upload-${file.name}`);
 }
