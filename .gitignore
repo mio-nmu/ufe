@@ -2,6 +2,7 @@
 node_modules/
 
 # Builds
+bd/src/generated/
 dist/
 .next/
 out/

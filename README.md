@@ -4,15 +4,12 @@ Monorepo for the UFE basketball team platform.
 
 - `fd/` — frontend: Next.js 16 + React 19 + Tailwind CSS 4
 - `bd/` — backend: Express 5 + TypeScript + MongoDB (Prisma) + Cloudinary
-- Root `docker-compose.yml` — local MongoDB (dev :27018, test :27019, replica sets)
 
-Requires Node 22 (`.nvmrc`) and Docker.
+Requires Node 22 (`.nvmrc`) and a MongoDB Atlas database (any replica-set MongoDB works). No Docker needed.
 
 ## Quick start
 
 ```bash
-docker compose up -d    # MongoDB (dev :27018, test :27019)
-
 cd bd
 cp .env.example .env
 npm install
@@ -37,15 +34,15 @@ Run from `bd/` or `fd/`:
 | `npm test` / `npm run test:e2e`              | Vitest units; e2e: Vitest (bd), Playwright (fd) |
 | `npm run verify`                             | Format + lint + types + tests + build       |
 
-Backend-only (`bd/`): `db:migrate` / `db:deploy` (push schema), `db:generate` (regenerate client), `db:seed` (bootstrap staff logins), `db:reset:test` (reset test DB).
+Backend-only (`bd/`): `db:migrate` / `db:deploy` (push schema), `db:generate` (regenerate client), `db:seed` (bootstrap staff logins).
 
-Docker: `docker compose up -d` · `down` (keep data) · `down -v` (wipe).
+E2E tests (`bd`) need no database setup: they start a throwaway in-memory MongoDB replica set (`mongodb-memory-server`) and delete it afterwards. The first run downloads a `mongod` binary into `node_modules/.cache`.
 
 ## Configuration
 
 `bd/.env` (copy from `.env.example`):
 
-- `DATABASE_URL` / `TEST_DATABASE_URL` — MongoDB connection strings (dev / e2e test).
+- `DATABASE_URL` — MongoDB connection string (e.g. your Atlas cluster). E2E tests ignore it and use an in-memory database.
 - `STORAGE_PROVIDER=cloudinary` + the four `CLOUDINARY_*` values — enables media uploads (Cloudinary dashboard → Settings → API Keys; the API secret is server-only). Left unset, media endpoints return 503.
 - `STAFF_PASSWORD` — shared password for the seeded admin logins; rotate for production.
 
@@ -66,7 +63,7 @@ separate frontend and backend origins; both deployments must use HTTPS.
 
 **Admin access:** log in as `manager` / `editor` / `edumanager` (all ADMIN, same admin side), or `POST /api/v1/user/auth/pin` with `ADMIN_PIN_CODE` (4–8 digits; empty disables; production refuses the default `1234`). Both issue the same JWT session.
 
-**Content & media:** live site text is stored per `page/key/locale` — public at `GET /api/v1/content/blocks/:page` (with SSE live updates via `/stream`), edited through the admin block endpoints (single-value `PUT`, defaults `ensure`, `history` audit). Media uploads are format-verified and capped by `MAX_UPLOAD_MB`; deleting a media row also deletes the Cloudinary asset. The admin UI uploads browser → Cloudinary **directly** with server-signed params (`POST /api/v1/admin/media/direct-params`, then `/register` with the resulting `publicId`) because Vercel caps function request bodies at 4.5 MB — larger images can never travel through bd. The proxied multipart `POST /api/v1/admin/media` remains for self-hosted deployments under that cap.
+**Content & media:** editable page copy is stored as one JSON section per `page/section` — public at `GET /api/v1/content/site-content/:page`, written with `PUT /api/v1/content/site-content/:page/:section` (allow-listed in `SITE_CONTENT_PAGES`). Media uploads are format-verified and capped by `MAX_UPLOAD_MB`; deleting a media row also deletes the Cloudinary asset. The admin UI uploads browser → Cloudinary **directly** with server-signed params (`POST /api/v1/admin/media/direct-params`, then `/register` with the resulting `publicId`) because Vercel caps function request bodies at 4.5 MB — larger images can never travel through bd. The proxied multipart `POST /api/v1/admin/media` remains for self-hosted deployments under that cap.
 
 ## CMS architecture & update flow
 
