@@ -152,10 +152,9 @@ function ScheduleCard({ game }: { game: GameRow }) {
   const opponentLogo = gameOpponentLogo(game);
   // Phones: the admin's short name when it really is shorter, else the
   // last word of the full name ("NUM Falcons" → "Falcons").
-  const opponentMobile =
-    game.opponentShort && game.opponentShort !== game.opponent
-      ? game.opponentShort
-      : (game.opponent.trim().split(/\s+/).at(-1) ?? game.opponent);
+  // Phones show the admin's short name when one is set, else the full name
+  // (it wraps onto two lines rather than being cut).
+  const opponentMobile = game.opponentShort?.trim() || game.opponent;
   // The scorer's word wins over the schedule: a game the scorer has started
   // shows live even before its listed tip-off (early start, wrong schedule
   // time), and a scorer-final result shows even before the row is updated.
@@ -229,8 +228,8 @@ function ScheduleCard({ game }: { game: GameRow }) {
               height={80}
               className="size-[clamp(28px,4vw,40px)] shrink-0"
             />
-            <span className="font-display block truncate text-[clamp(16px,3vw,28px)] font-bold tracking-[0.02em] uppercase">
-              <span className="hidden sm:inline">UFE </span>BRONCOS
+            <span className="font-display block min-w-0 text-[clamp(14px,3vw,28px)] leading-tight font-bold tracking-[0.02em] uppercase sm:truncate">
+              UFE BRONCOS
             </span>
           </span>
           {teamScore !== null && (
@@ -240,10 +239,10 @@ function ScheduleCard({ game }: { game: GameRow }) {
           )}
         </div>
 
-        <div className="bg-brand rounded-md px-2 py-1.5 text-center sm:px-3">
+        <div className="bg-brand max-w-[104px] min-w-0 rounded-md px-1.5 py-1 text-center sm:max-w-none sm:px-3 sm:py-1.5">
           {isLive || isPreGame ? (
             <>
-              <span className="flex items-center justify-center gap-1.5 text-[13px] font-bold tracking-[0.12em] uppercase">
+              <span className="flex items-center justify-center gap-1.5 text-[11px] font-bold tracking-[0.08em] uppercase sm:text-[13px] sm:tracking-[0.12em]">
                 <span
                   aria-hidden="true"
                   className="size-1.5 animate-pulse rounded-full bg-red-500"
@@ -255,7 +254,7 @@ function ScheduleCard({ game }: { game: GameRow }) {
                     : "Pre game"}
               </span>
               {activeState?.status === "LIVE" && (
-                <span className="mt-1 block text-[12px] font-semibold tracking-[0.06em] uppercase">
+                <span className="mt-1 block text-[10px] font-semibold tracking-[0.04em] uppercase sm:text-[12px] sm:tracking-[0.06em]">
                   {periodLabel(activeState.period)} ·{" "}
                   {formatClock(displayClock)}
                 </span>
@@ -263,19 +262,23 @@ function ScheduleCard({ game }: { game: GameRow }) {
             </>
           ) : (
             <>
-              <span className="block text-[12px] font-semibold tracking-[0.12em] text-white/70 uppercase">
+              <span className="block text-[10px] font-semibold tracking-[0.08em] text-white/70 uppercase sm:text-[12px] sm:tracking-[0.12em]">
                 {isFinal || scoredFinal
                   ? "Finished"
                   : isCancelled
                     ? "Цуцалсан"
                     : `${date.weekday} · ${date.month} ${date.day}`}
               </span>
-              <span className="font-display mt-2 block text-[18px] font-bold tracking-[0.06em] uppercase">
+              <span className="font-display mt-1 block text-[15px] font-bold tracking-[0.06em] uppercase sm:mt-2 sm:text-[18px]">
                 VS
               </span>
               {!isFinal && !scoredFinal && !isCancelled && (
-                <span className="mt-2 block text-[12px] font-semibold tracking-[0.06em] text-white/70 uppercase">
-                  {gameTime(game.tipsAt)} @ {game.venue}
+                <span className="mt-1 block text-[10px] font-semibold tracking-[0.04em] text-white/70 uppercase sm:mt-2 sm:text-[12px] sm:tracking-[0.06em]">
+                  {gameTime(game.tipsAt)}
+                  <span className="hidden sm:inline"> @ </span>
+                  <span className="block leading-tight break-words sm:inline">
+                    {game.venue}
+                  </span>
                 </span>
               )}
             </>
@@ -286,6 +289,10 @@ function ScheduleCard({ game }: { game: GameRow }) {
           className={`min-w-0 text-center ${opponentOnLight ? "text-ink" : ""}`}
         >
           <span className="flex min-w-0 items-center justify-center gap-2">
+            <span className="font-display block min-w-0 text-[clamp(14px,3vw,28px)] leading-tight font-bold tracking-[0.02em] uppercase sm:truncate">
+              <span className="sm:hidden">{opponentMobile}</span>
+              <span className="hidden sm:inline">{game.opponent}</span>
+            </span>
             {opponentLogo && (
               <span className="flex size-[clamp(28px,4vw,40px)] shrink-0 items-center justify-center rounded-full bg-white p-[2px]">
                 <Image
@@ -297,10 +304,6 @@ function ScheduleCard({ game }: { game: GameRow }) {
                 />
               </span>
             )}
-            <span className="font-display block truncate text-[clamp(16px,3vw,28px)] font-bold tracking-[0.02em] uppercase">
-              <span className="sm:hidden">{opponentMobile}</span>
-              <span className="hidden sm:inline">{game.opponent}</span>
-            </span>
           </span>
           {opponentScore !== null && (
             <span className="font-display mt-1 block text-[clamp(24px,4vw,38px)] leading-none font-bold tabular-nums">

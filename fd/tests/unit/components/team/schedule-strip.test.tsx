@@ -61,17 +61,24 @@ describe("ScheduleStrip opponent colour", () => {
     }
   });
 
-  it("uses the last word on phones when the short name is not shorter", () => {
+  it("shows the full name on phones when no short name is set", () => {
     const { container } = render(
       <ScheduleStrip
-        games={[
-          game({ opponent: "NUM Falcons", opponentShort: "NUM Falcons" }),
-        ]}
+        games={[game({ opponent: "UOH Hawks", opponentShort: null })]}
       />,
     );
     expect(container.querySelector(".sm\\:hidden")?.textContent).toBe(
-      "Falcons",
+      "UOH Hawks",
     );
+  });
+
+  it("shows the admin's short name on phones when one is set", () => {
+    const { container } = render(
+      <ScheduleStrip
+        games={[game({ opponent: "UOH Hawks", opponentShort: "Hawks" })]}
+      />,
+    );
+    expect(container.querySelector(".sm\\:hidden")?.textContent).toBe("Hawks");
   });
 
   it("never prefixes other teams with NUM", () => {
