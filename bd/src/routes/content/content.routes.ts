@@ -57,6 +57,7 @@ contentRouter.use(publicReadCache);
 
 // ── News (мэдээ) ─────────────────────────────────────────────────────────────
 mountCrud(contentRouter, '/news', {
+  activity: { entity: 'newsPost', label: (row) => String(row.title) },
   key: 'post',
   list: (query, hidden) => ({
     orderBy: { publishedAt: 'desc' },
@@ -76,6 +77,7 @@ mountCrud(contentRouter, '/news', {
 
 // ── Players (багийн бүрэлдэхүүн) ─────────────────────────────────────────────
 mountCrud(contentRouter, '/players', {
+  activity: { entity: 'player', label: (row) => String(row.name) },
   key: 'player',
   list: (query, hidden) => ({
     orderBy: [{ sortOrder: 'asc' }, { number: 'asc' }],
@@ -92,6 +94,7 @@ mountCrud(contentRouter, '/players', {
 // Scheduled games list soonest-first, finished games most-recent-first;
 // month=YYYY-MM narrows to that calendar month.
 mountCrud(contentRouter, '/games', {
+  activity: { entity: 'game', label: (row) => `vs ${String(row.opponent)}` },
   // A deleted game takes its live scoreboard and event history with it.
   beforeDelete: (gameId) =>
     prisma.$transaction([
@@ -119,6 +122,7 @@ mountCrud(contentRouter, '/games', {
 
 // ── Media albums (галерей) ───────────────────────────────────────────────────
 mountCrud(contentRouter, '/media', {
+  activity: { entity: 'mediaAlbum', label: (row) => String(row.title) },
   key: 'album',
   list: (query, hidden) => ({
     orderBy: { sortOrder: 'asc' },
@@ -133,6 +137,7 @@ mountCrud(contentRouter, '/media', {
 
 // ── Executives (front office) ────────────────────────────────────────────────
 mountCrud(contentRouter, '/executives', {
+  activity: { entity: 'executive', label: (row) => String(row.name) },
   key: 'executive',
   list: (query, hidden) => ({
     orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
@@ -146,6 +151,7 @@ mountCrud(contentRouter, '/executives', {
 
 // ── Videos (видео сан) ───────────────────────────────────────────────────────
 mountCrud(contentRouter, '/videos', {
+  activity: { entity: 'video', label: (row) => String(row.title) },
   key: 'video',
   list: (query, hidden) => ({
     orderBy: [{ sortOrder: 'asc' }, { publishedAt: 'desc' }],
@@ -166,6 +172,7 @@ mountCrud(contentRouter, '/videos', {
 
 // ── Shop products (фэн клаб) ─────────────────────────────────────────────────
 mountCrud(contentRouter, '/shop', {
+  activity: { entity: 'shopProduct', label: (row) => String(row.name) },
   key: 'product',
   list: (query, hidden) => ({
     orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],

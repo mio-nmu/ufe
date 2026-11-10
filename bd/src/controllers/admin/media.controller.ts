@@ -1,6 +1,7 @@
 import type { Request, Response } from 'express';
 
 import { ApiError } from '../../lib/ApiError.js';
+import { assetLabel, recordActivity } from '../../services/admin/activity.service.js';
 import * as mediaService from '../../services/media/media.service.js';
 import { signDirectUpload } from '../../services/media/storage.service.js';
 import { ok } from '../../utils/http.js';
@@ -38,6 +39,7 @@ export async function registerDirectMedia(req: Request, res: Response): Promise<
     altText: alt,
     publicId,
   });
+  await recordMedia(req, 'CREATED', media);
   ok(res, { media }, 201);
 }
 
@@ -45,6 +47,7 @@ export async function removeMedia(req: Request, res: Response): Promise<void> {
   requireUser(req);
   const { id } = req.params as { id: string };
   const result = await mediaService.removeMedia(id);
+  await recordMedia(req, 'DELETED', { altText: null, id, publicId: result.publicId });
   ok(res, result);
 }
 
@@ -53,6 +56,7 @@ export async function updateMediaAltText(req: Request, res: Response): Promise<v
   const { id } = req.params as { id: string };
   const { alt } = req.body as { alt: string };
   const media = await mediaService.updateMediaAltText(id, alt);
+  await recordMedia(req, 'UPDATED', media);
   ok(res, { media });
 }
 
@@ -71,7 +75,21 @@ export async function uploadMedia(req: Request, res: Response): Promise<void> {
     buffer: req.file.buffer,
     folder: fields.folder,
   });
+  await recordMedia(req, 'CREATED', media);
   ok(res, { media }, 201);
+}
+
+function recordMedia(
+  req: Request,
+  action: 'CREATED' | 'DELETED' | 'UPDATED',
+  media: { altText: null | string; id: string; publicId: string },
+): Promise<void> {
+  return recordActivity(req.user, {
+    action,
+    entity: 'media',
+    entityId: media.id,
+    label: assetLabel(media.altText, media.publicId),
+  });
 }
 
 function requireUser(req: Request) {

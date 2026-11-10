@@ -97,11 +97,10 @@ function ScheduleCard({ game }: { game: GameRow }) {
     !scoredFinal &&
     nowMs > 0 &&
     nowMs >= new Date(game.tipsAt).getTime() - 10 * 60 * 1000;
-  // The stream can silently miss scorer actions on the serverless backend
-  // (connection cut or served by a different instance), so poll while a game
-  // could be in progress — at 30s this stays far under the API rate limit.
+  // Pre-game only: notice the tip-off if its push was missed. Once the game
+  // is live, useLiveGame itself resyncs (and pushes carry every change).
   useEffect(() => {
-    if (!isLive && liveMode !== "live") return;
+    if (isLive || liveMode !== "live") return;
     const interval = window.setInterval(refresh, 30_000);
     return () => window.clearInterval(interval);
   }, [isLive, liveMode, refresh]);

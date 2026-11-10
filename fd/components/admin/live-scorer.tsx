@@ -7,12 +7,16 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { api } from "@/lib/api-client";
 import {
+  foulSlot,
   formatClock,
   periodLabel,
+  periodSeconds,
+  secondsLeft,
   useLiveClock,
   useLiveGameStream,
 } from "@/hooks/use-live-game";
 import { revalidatePublicTag } from "@/lib/admin/revalidate";
+import { serverNow } from "@/lib/server-clock";
 import {
   liveGamesService,
   type LiveGameEvent,
@@ -33,8 +37,12 @@ const ubDay = new Intl.DateTimeFormat("en-US", {
   timeZone: "Asia/Ulaanbaatar",
 });
 
+/** Finished games kept in the picker for corrections after the buzzer. */
+const RECENT_FINAL_LIMIT = 20;
+
 export function LiveScorer() {
-  const [games, setGames] = useState<GameRow[]>([]);
+  const [upcomingGames, setUpcomingGames] = useState<GameRow[]>([]);
+  const [finishedGames, setFinishedGames] = useState<GameRow[]>([]);
   const [players, setPlayers] = useState<PlayerRow[]>([]);
   const [gameId, setGameId] = useState("");
   const [state, setState] = useState<LiveGameState | null>(null);
@@ -60,14 +68,28 @@ export function LiveScorer() {
   }, []);
 
   useEffect(() => {
+    // Upcoming soonest-first and recent results newest-first: a plain list
+    // is oldest-first and capped, so new games would fall off its end.
     void Promise.all([
-      api.get<{ items: GameRow[] }>("/api/v1/content/games?limit=100"),
+      api.get<{ items: GameRow[] }>(
+        "/api/v1/content/games?status=SCHEDULED&limit=100",
+      ),
+      api.get<{ items: GameRow[] }>(
+        `/api/v1/content/games?status=FINAL&limit=${RECENT_FINAL_LIMIT}`,
+      ),
       api.get<{ items: PlayerRow[] }>("/api/v1/content/players?role=PLAYER"),
     ])
-      .then(([gameResult, playerResult]) => {
-        setGames(gameResult.items);
+      .then(([upcomingResult, finishedResult, playerResult]) => {
+        const upcomingIds = new Set(upcomingResult.items.map((g) => g.id));
+        setUpcomingGames(upcomingResult.items);
+        setFinishedGames(
+          finishedResult.items.filter((g) => !upcomingIds.has(g.id)),
+        );
         setPlayers(playerResult.items);
-        if (gameResult.items[0]) setGameId(gameResult.items[0].id);
+        const initial =
+          closestGame(upcomingResult.items, Date.now()) ??
+          finishedResult.items[0];
+        if (initial) setGameId(initial.id);
       })
       .catch((error) =>
         toast.error(
@@ -117,8 +139,9 @@ export function LiveScorer() {
   });
 
   const selectedGame = useMemo(
-    () => games.find((game) => game.id === gameId),
-    [games, gameId],
+    () =>
+      [...upcomingGames, ...finishedGames].find((game) => game.id === gameId),
+    [upcomingGames, finishedGames, gameId],
   );
   const selectedLineup = state?.lineup ?? [];
 
@@ -136,7 +159,11 @@ export function LiveScorer() {
           tipsAt: new Date(`${newTipsAt}:00+08:00`).toISOString(),
         },
       );
-      setGames((current) => [...current, result.game]);
+      setUpcomingGames((current) =>
+        [...current, result.game].sort((a, b) =>
+          a.tipsAt.localeCompare(b.tipsAt),
+        ),
+      );
       setGameId(result.game.id);
       setNewOpponent("");
       setNewTipsAt("");
@@ -152,14 +179,17 @@ export function LiveScorer() {
     if (!gameId) return;
     // Reflect the action locally first so every control reacts instantly;
     // the last action's response replaces the projections when it lands.
+    // Stamp the tap in server time: the server freezes or starts the clock
+    // at this moment, not when the request happens to arrive.
+    const tapAt = serverNow();
     const seq = ++lastActionSeq.current;
     setState((current) =>
-      current ? projectAction(current, payload) : current,
+      current ? projectAction(current, payload, tapAt) : current,
     );
     actionsInFlight.current += 1;
     let failed = false;
     liveGamesService
-      .action(gameId, payload)
+      .action(gameId, { ...payload, at: Math.round(tapAt) })
       .then(({ event, reversedEventId, state: next }) => {
         // End / reset change the schedule row: refresh the public pages now.
         if (payload.type === "end" || payload.type === "reset") {
@@ -200,9 +230,12 @@ export function LiveScorer() {
   }
 
   function setCustomClock() {
-    const seconds = parseClock(clockInput);
+    const max = periodSeconds(state?.period ?? 1);
+    const seconds = parseClock(clockInput, max);
     if (seconds === null) {
-      toast.error("Enter the time as m:ss, e.g. 7:43 (max 12:00)");
+      toast.error(
+        `Enter the time as m:ss, e.g. 4:30 (max ${formatClock(max)})`,
+      );
       return;
     }
     action({ running: false, seconds, type: "clock" });
@@ -230,11 +263,24 @@ export function LiveScorer() {
         onChange={(event) => setGameId(event.target.value)}
       >
         <option value="">Select a game</option>
-        {games.map((game) => (
-          <option key={game.id} value={game.id}>
-            {game.opponent} · {ubStamp(game.tipsAt)}
-          </option>
-        ))}
+        {upcomingGames.length ? (
+          <optgroup label="Upcoming">
+            {upcomingGames.map((game) => (
+              <option key={game.id} value={game.id}>
+                {game.opponent} · {ubStamp(game.tipsAt)}
+              </option>
+            ))}
+          </optgroup>
+        ) : null}
+        {finishedGames.length ? (
+          <optgroup label="Finished">
+            {finishedGames.map((game) => (
+              <option key={game.id} value={game.id}>
+                {game.opponent} · {ubStamp(game.tipsAt)}
+              </option>
+            ))}
+          </optgroup>
+        ) : null}
       </select>
       {state && selectedGame ? (
         <>
@@ -250,23 +296,22 @@ export function LiveScorer() {
             <div className="bg-brand rounded-lg p-4 text-center text-white">
               <p className="text-sm">UFE</p>
               <strong className="text-5xl">{state.teamScore}</strong>
-              <p>Fouls: {state.teamFouls[state.period - 1] ?? 0}</p>
+              <p>Fouls: {state.teamFouls[foulSlot(state.period)] ?? 0}</p>
             </div>
             <div className="bg-paper-soft rounded-lg p-4 text-center">
               <p className="text-sm">{selectedGame.opponent}</p>
               <strong className="text-5xl">{state.opponentScore}</strong>
-              <p>Fouls: {state.opponentFouls[state.period - 1] ?? 0}</p>
+              <p>Fouls: {state.opponentFouls[foulSlot(state.period)] ?? 0}</p>
             </div>
             <div className="grid grid-cols-2 gap-2">
-              <Button size="lg" onClick={() => void action({ type: "start" })}>
-                Start
-              </Button>
               <Button
                 size="lg"
-                variant="outline"
-                onClick={() => void action({ type: "clock", running: false })}
+                className="col-span-2 h-14 text-lg"
+                variant={state.clockRunning ? "destructive" : "default"}
+                disabled={state.status === "LIVE" && displayClock <= 0}
+                onClick={() => action(clockToggleAction(state))}
               >
-                Pause
+                {clockToggleLabel(state)}
               </Button>
               <Button
                 size="lg"
@@ -309,12 +354,12 @@ export function LiveScorer() {
                   onClick={() =>
                     void action({
                       running: false,
-                      seconds: 720,
+                      seconds: periodSeconds(state.period),
                       type: "clock",
                     })
                   }
                 >
-                  Reset 12:00
+                  Reset {formatClock(periodSeconds(state.period))}
                 </Button>
                 <Button
                   size="lg"
@@ -332,8 +377,8 @@ export function LiveScorer() {
                 </Button>
               </div>
               <p className="text-muted-foreground text-xs">
-                Set time pauses the clock at the entered time — press Start to
-                run it. Reset game wipes everything back to a fresh pre-tip
+                Set time stops the clock at the entered time — press Start clock
+                to run it. Reset game wipes everything back to a fresh pre-tip
                 state.
               </p>
             </div>
@@ -347,13 +392,13 @@ export function LiveScorer() {
                     label: "UFE",
                     side: "team" as const,
                     score: state.teamScore,
-                    fouls: state.teamFouls[state.period - 1] ?? 0,
+                    fouls: state.teamFouls[foulSlot(state.period)] ?? 0,
                   },
                   {
                     label: selectedGame.opponent,
                     side: "opponent" as const,
                     score: state.opponentScore,
-                    fouls: state.opponentFouls[state.period - 1] ?? 0,
+                    fouls: state.opponentFouls[foulSlot(state.period)] ?? 0,
                   },
                 ].map((team) => (
                   <div
@@ -593,20 +638,14 @@ export function LiveScorer() {
 export function projectAction(
   current: LiveGameState,
   payload: Record<string, unknown>,
+  atServerMs: number = serverNow(),
 ): LiveGameState {
-  // Freeze what the user currently sees before projecting: burn the
-  // elapsed seconds into clockSeconds so resetting updatedAt never makes
-  // the displayed clock jump back up mid-run.
-  const elapsed = current.clockRunning
-    ? Math.max(
-        0,
-        Math.floor((Date.now() - new Date(current.updatedAt).getTime()) / 1000),
-      )
-    : 0;
+  // Re-anchor at the tap: the exact clock the scorer saw at that moment
+  // becomes the new snapshot, so the display never jumps.
   const next: LiveGameState = {
     ...current,
-    clockSeconds: Math.max(0, current.clockSeconds - elapsed),
-    updatedAt: new Date().toISOString(),
+    clockSeconds: secondsLeft(current, atServerMs),
+    serverTime: new Date(atServerMs).toISOString(),
   };
   const foulKey = (side: string) =>
     side === "team" ? "teamFouls" : "opponentFouls";
@@ -621,7 +660,10 @@ export function projectAction(
       const seconds =
         payload.seconds === undefined
           ? next.clockSeconds
-          : Math.max(0, Math.min(720, Number(payload.seconds)));
+          : Math.max(
+              0,
+              Math.min(periodSeconds(next.period), Number(payload.seconds)),
+            );
       next.clockSeconds = seconds;
       next.clockRunning = Boolean(payload.running) && seconds > 0;
       break;
@@ -631,8 +673,8 @@ export function projectAction(
       next.period = 1;
       next.clockSeconds =
         payload.seconds === undefined
-          ? 720
-          : Math.max(0, Math.min(720, Number(payload.seconds)));
+          ? periodSeconds(1)
+          : Math.max(0, Math.min(periodSeconds(1), Number(payload.seconds)));
       next.clockRunning = false;
       next.teamScore = 0;
       next.opponentScore = 0;
@@ -655,7 +697,7 @@ export function projectAction(
     case "period":
       // Mirrors the server: a new period stops the clock at its full length.
       next.period = Number(payload.period ?? next.period);
-      next.clockSeconds = next.period > 4 ? 300 : 720;
+      next.clockSeconds = periodSeconds(next.period);
       next.clockRunning = false;
       break;
     case "score": {
@@ -673,11 +715,11 @@ export function projectAction(
     }
     case "foul": {
       const key = foulKey(String(payload.side));
-      const period = Number(payload.period ?? next.period) - 1;
+      const slot = foulSlot(Number(payload.period ?? next.period));
       const fouls = [...next[key]];
-      fouls[period] = Math.max(
+      fouls[slot] = Math.max(
         0,
-        (fouls[period] ?? 0) + Number(payload.amount ?? 0),
+        (fouls[slot] ?? 0) + Number(payload.amount ?? 0),
       );
       next[key] = fouls;
       break;
@@ -701,12 +743,36 @@ export function projectAction(
   return next;
 }
 
-/** "7:43" → 463 seconds; null when it isn't a valid m:ss within 12:00. */
-function parseClock(value: string): number | null {
+/** The scheduled game whose tip-off is nearest to `now` — tonight's game,
+ *  not the oldest one never marked final. */
+function closestGame(games: GameRow[], now: number): GameRow | undefined {
+  const distance = (game: GameRow) =>
+    Math.abs(new Date(game.tipsAt).getTime() - now);
+  return games.reduce<GameRow | undefined>(
+    (best, game) => (!best || distance(game) < distance(best) ? game : best),
+    undefined,
+  );
+}
+
+/** The one clock button: tip off, resume after a break, or stop/start
+ *  the running game clock. */
+function clockToggleAction(state: LiveGameState): Record<string, unknown> {
+  if (state.status !== "LIVE") return { type: "start" };
+  return { running: !state.clockRunning, type: "clock" };
+}
+
+function clockToggleLabel(state: LiveGameState): string {
+  if (state.status === "NOT_STARTED") return "Start game";
+  if (state.status !== "LIVE") return "Resume game";
+  return state.clockRunning ? "Stop clock" : "Start clock";
+}
+
+/** "7:43" → 463 seconds; null when it isn't a valid m:ss within `max`. */
+function parseClock(value: string, max: number): number | null {
   const match = value.trim().match(/^(\d{1,2}):([0-5]?\d)$/);
   if (!match) return null;
   const seconds = Number(match[1]) * 60 + Number(match[2]);
-  return seconds <= 720 ? seconds : null;
+  return seconds <= max ? seconds : null;
 }
 
 function ubStamp(iso: string): string {

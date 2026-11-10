@@ -7,6 +7,7 @@ import {
   getHomeSpotlight,
 } from "@/components/team/home-spotlight";
 import { HomeTimeline } from "@/components/team/home-timeline";
+import { HomeVisitBeacon } from "@/components/team/home-visit-beacon";
 import { NewsGrid, type NewsItem } from "@/components/team/news-grid";
 import { Reveal } from "@/components/team/reveal";
 import { ScheduleStrip } from "@/components/team/schedule-strip";
@@ -96,6 +97,7 @@ export default async function HomePage() {
 
   return (
     <>
+      <HomeVisitBeacon />
       <ScheduleStrip
         games={selectedGames.sort((a, b) => a.tipsAt.localeCompare(b.tipsAt))}
       />

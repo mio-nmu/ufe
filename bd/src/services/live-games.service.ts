@@ -1,15 +1,34 @@
-import type { LiveGameEvent } from '../generated/prisma/index.js';
+import type { LiveGame, LiveGameEvent } from '../generated/prisma/index.js';
 
+import { LIVE_PERIOD_SECONDS } from '../config/constants.js';
 import { ApiError } from '../lib/ApiError.js';
 import { emitLiveGameChanged } from '../lib/live-game-events.js';
 import { prisma } from '../lib/prisma.js';
+import { publishLiveGameState } from '../lib/realtime.js';
 
-const PERIOD_SECONDS = 12 * 60;
-/** Four quarters, then up to four 5-minute overtimes (period 5 = OT1). */
+/** FIBA timing: four 10-minute quarters, then up to four 5-minute overtimes
+ *  (period 5 = OT1). */
+const PERIOD_SECONDS = LIVE_PERIOD_SECONDS;
+const OVERTIME_SECONDS = 5 * 60;
 const REGULATION_PERIODS = 4;
 const MAX_PERIOD = 8;
-const OVERTIME_SECONDS = 5 * 60;
+const MAX_TIMEOUTS = 6;
+const MAX_ON_FLOOR = 5;
 
+/** How far in the past a tap's own timestamp is trusted. Older (a request
+ *  stuck offline) falls back to this bound rather than rewinding the clock. */
+const MAX_TAP_AGE_MS = 5000;
+
+/** Attempts per action when another server instance wrote the same game
+ *  between our read and our write. */
+const MAX_WRITE_ATTEMPTS = 5;
+
+/** The only events undo can reverse: clock, period, lineup and status
+ *  changes are re-done by pressing the control again, never undone. */
+const UNDOABLE_TYPES = ['score', 'adjust_score', 'foul', 'timeout'];
+
+/** Per-instance FIFO so one scorer's burst applies in tap order without
+ *  retry churn; cross-instance safety comes from the write check. */
 const actionQueues = new Map<string, Promise<void>>();
 
 /** What a scorer action returns: the new state plus the history entry it
@@ -17,16 +36,52 @@ const actionQueues = new Map<string, Promise<void>>();
  *  its log without refetching it. */
 export interface ActionResult {
   event: LiveGameEvent;
+  /** Set when the action moved the game to a new phase worth logging:
+   *  the first tip-off (not a clock resume) or the final buzzer. */
+  milestone?: 'FINISHED' | 'STARTED';
   reversedEventId?: string;
   state: LiveGameState;
 }
 
-export interface LiveGameState {
+/** Schedule-row change that rides along an end or reset. */
+interface GameSync {
+  opponentScore: null | number;
+  status: 'FINAL' | 'SCHEDULED';
+  teamScore: null | number;
+}
+
+/** Live state as clients see it: the clock is projected to `serverTime`. */
+export interface LiveGameState extends ScoreboardFields {
+  gameId: string;
+  id: string;
+  /** When the server produced this snapshot; clients count the running
+   *  clock down from here (after correcting for their own clock offset). */
+  serverTime: Date;
+  updatedAt: Date;
+}
+
+type Action =
+  | { amount: -1 | 1; period?: number; side: Side; type: 'foul' }
+  | { amount: -1 | 1; side: Side; type: 'timeout' }
+  | { amount: number; side: Side; type: 'adjust_score' }
+  | { period: number; type: 'period' }
+  | { playerIds: string[]; type: 'lineup' }
+  | { points: 1 | 2 | 3; side: Side; type: 'score' }
+  | { running: boolean; seconds?: number; type: 'clock' }
+  | { seconds?: number; type: 'reset' }
+  | { type: 'end' }
+  | { type: 'halftime' }
+  | { type: 'start' }
+  | { type: 'undo' };
+
+/** Every action may carry `at`: the tap moment in server time (ms). */
+type TimedAction = Action & { at?: number };
+
+/** The persisted scoreboard, minus identity and bookkeeping columns. */
+interface ScoreboardFields {
   clockRunning: boolean;
   clockSeconds: number;
   endedAt: Date | null;
-  gameId: string;
-  id: string;
   lineup: string[];
   opponentFouls: number[];
   opponentScore: number;
@@ -36,24 +91,14 @@ export interface LiveGameState {
   teamFouls: number[];
   teamScore: number;
   timeouts: number[];
-  updatedAt: Date;
 }
 
-type Action =
-  | { amount: -1 | 1; period: number; side: 'opponent' | 'team'; type: 'foul' }
-  | { amount: -1 | 1; side: 'opponent' | 'team'; type: 'timeout' }
-  | { amount: number; side: 'opponent' | 'team'; type: 'adjust_score' }
-  | { period: number; type: 'period' }
-  | { playerIds: string[]; type: 'lineup' }
-  | { points: 1 | 2 | 3; side: 'opponent' | 'team'; type: 'score' }
-  | { running: boolean; seconds?: number; type: 'clock' }
-  | { seconds?: number; type: 'reset' }
-  | { type: 'end' }
-  | { type: 'halftime' }
-  | { type: 'start' }
-  | { type: 'undo' };
+type Side = 'opponent' | 'team';
 
-export async function applyAction(gameId: string, action: Action): Promise<ActionResult> {
+/** Thrown inside the write transaction when the row changed since we read it. */
+class StaleWriteError extends Error {}
+
+export async function applyAction(gameId: string, action: TimedAction): Promise<ActionResult> {
   const previous = actionQueues.get(gameId) ?? Promise.resolve();
   let release!: () => void;
   const current = new Promise<void>((resolve) => {
@@ -63,197 +108,28 @@ export async function applyAction(gameId: string, action: Action): Promise<Actio
   actionQueues.set(gameId, queued);
   await previous;
   try {
-    return await applyActionInQueue(gameId, action);
+    const result = await applyWithRetry(gameId, action);
+    await broadcast(gameId, result.state);
+    return result;
   } finally {
     release();
     if (actionQueues.get(gameId) === queued) actionQueues.delete(gameId);
   }
 }
 
-async function applyActionInQueue(gameId: string, action: Action): Promise<ActionResult> {
-  // The row normally exists (the scorer calls /ensure when opening a game);
-  // fall back to ensureState only on first use.
-  const existing = await prisma.liveGame.findUnique({ where: { gameId } });
-  const state = existing ? normalise(existing as LiveGameState) : await ensureState(gameId);
-  if (action.type === 'undo') {
-    const event = await prisma.liveGameEvent.findFirst({
-      orderBy: { createdAt: 'desc' },
-      where: { gameId, reversed: false },
-    });
-    if (!event) throw ApiError.badRequest('No event to undo');
-    const payload = event.payload as Partial<Action>;
-    const inverse = { ...state };
-    if (payload.type === 'score' && payload.side && payload.points) {
-      if (payload.side === 'team')
-        inverse.teamScore = Math.max(0, inverse.teamScore - payload.points);
-      else inverse.opponentScore = Math.max(0, inverse.opponentScore - payload.points);
-    } else if (payload.type === 'adjust_score' && payload.side && payload.amount !== undefined) {
-      if (payload.side === 'team')
-        inverse.teamScore = Math.max(0, inverse.teamScore - payload.amount);
-      else inverse.opponentScore = Math.max(0, inverse.opponentScore - payload.amount);
-    } else if (payload.type === 'foul' && payload.side && payload.amount) {
-      const fouls = payload.side === 'team' ? inverse.teamFouls : inverse.opponentFouls;
-      fouls[(payload.period ?? inverse.period) - 1] = Math.max(
-        0,
-        (fouls[(payload.period ?? inverse.period) - 1] ?? 0) - payload.amount,
-      );
-    } else if (payload.type === 'timeout' && payload.side) {
-      const index = payload.side === 'team' ? 0 : 1;
-      inverse.timeouts[index] = Math.max(
-        0,
-        Math.min(6, (inverse.timeouts[index] ?? 0) - (payload.amount ?? -1)),
-      );
-    } else {
-      throw ApiError.badRequest('This event cannot be undone automatically');
-    }
-    const [created, updated] = await prisma.$transaction(async (tx) => {
-      await tx.liveGameEvent.update({ data: { reversed: true }, where: { id: event.id } });
-      const undoEvent = await tx.liveGameEvent.create({
-        data: { gameId, payload: { eventId: event.id }, type: 'undo' },
-      });
-      const row = await tx.liveGame.update({
-        data: {
-          opponentFouls: inverse.opponentFouls,
-          opponentScore: inverse.opponentScore,
-          teamFouls: inverse.teamFouls,
-          teamScore: inverse.teamScore,
-          timeouts: inverse.timeouts,
-        },
-        where: { gameId },
-      });
-      return [undoEvent, row] as const;
-    });
-    const next = normalise(updated as LiveGameState);
-    emitLiveGameChanged(gameId, next);
-    return { event: created, reversedEventId: event.id, state: next };
-  }
-  const data: Record<string, unknown> = {};
-  let status = state.status;
-  let period = state.period;
-  let clockSeconds = state.clockSeconds;
-  let clockRunning = state.clockRunning;
-  let teamScore = state.teamScore;
-  let opponentScore = state.opponentScore;
-  let teamFouls = [...state.teamFouls];
-  let opponentFouls = [...state.opponentFouls];
-  let timeouts = [...state.timeouts];
-  let lineup = [...state.lineup];
-
-  if (action.type === 'score') {
-    if (action.side === 'team') teamScore += action.points;
-    else opponentScore += action.points;
-  } else if (action.type === 'adjust_score') {
-    if (action.side === 'team') teamScore = Math.max(0, teamScore + action.amount);
-    else opponentScore = Math.max(0, opponentScore + action.amount);
-  } else if (action.type === 'foul') {
-    const fouls = action.side === 'team' ? teamFouls : opponentFouls;
-    fouls[period - 1] = Math.max(0, (fouls[period - 1] ?? 0) + action.amount);
-  } else if (action.type === 'timeout') {
-    const index = action.side === 'team' ? 0 : 1;
-    timeouts[index] = Math.max(0, Math.min(6, (timeouts[index] ?? 0) + action.amount));
-  } else if (action.type === 'clock') {
-    if (typeof action.seconds === 'number')
-      clockSeconds = Math.max(0, Math.min(PERIOD_SECONDS, action.seconds));
-    clockRunning = action.running && clockSeconds > 0;
-  } else if (action.type === 'period') {
-    period = Math.max(1, Math.min(MAX_PERIOD, action.period));
-    clockSeconds = periodSeconds(period);
-    clockRunning = false;
-  } else if (action.type === 'lineup') {
-    // Any size up to five is legal: the scorer builds the floor tap-by-tap
-    // (1st..5th player each send an interim lineup) and an empty list
-    // clears it — demanding exactly five would reject every step but the last.
-    if (action.playerIds.length > 5)
-      throw ApiError.badRequest('At most five players can be on the floor');
-    lineup = action.playerIds;
-  } else if (action.type === 'halftime') {
-    status = 'HALFTIME';
-    clockRunning = false;
-  } else if (action.type === 'start') {
-    status = 'LIVE';
-    clockRunning = true;
-    data.startedAt = state.startedAt ?? new Date();
-  } else if (action.type === 'end') {
-    status = 'FINAL';
-    clockRunning = false;
-    data.endedAt = new Date();
-  } else if (action.type === 'reset') {
-    // Full manual reset — the scorer's escape hatch for a game started (or
-    // scored) by mistake: everything returns to a clean pre-tip state.
-    status = 'NOT_STARTED';
-    period = 1;
-    clockSeconds =
-      typeof action.seconds === 'number'
-        ? Math.max(0, Math.min(PERIOD_SECONDS, action.seconds))
-        : PERIOD_SECONDS;
-    clockRunning = false;
-    teamScore = 0;
-    opponentScore = 0;
-    teamFouls = [0, 0, 0, 0];
-    opponentFouls = [0, 0, 0, 0];
-    timeouts = [6, 6];
-    lineup = [];
-    data.startedAt = null;
-    data.endedAt = null;
-  }
-
-  const [created, updated] = await prisma.$transaction(async (tx) => {
-    const event = await tx.liveGameEvent.create({
-      data: { gameId, payload: action, type: action.type },
-    });
-    // The scoreboard and the schedule are one game: ending it publishes the
-    // result on the Game row; resetting a game the scorer had ended reopens it.
-    if (action.type === 'end') {
-      await tx.game.update({
-        data: { opponentScore, status: 'FINAL', teamScore },
-        where: { id: gameId },
-      });
-    } else if (action.type === 'reset' && state.status === 'FINAL') {
-      await tx.game.update({
-        data: { opponentScore: null, status: 'SCHEDULED', teamScore: null },
-        where: { id: gameId },
-      });
-    }
-    const row = await tx.liveGame.update({
-      data: {
-        ...data,
-        clockRunning,
-        clockSeconds,
-        lineup,
-        opponentFouls,
-        opponentScore,
-        period,
-        status,
-        teamFouls,
-        teamScore,
-        timeouts,
-      },
-      where: { gameId },
-    });
-    return [event, row] as const;
-  });
-  const next = normalise(updated as LiveGameState);
-  emitLiveGameChanged(gameId, next);
-  return { event: created, state: next };
+export async function ensureState(gameId: string): Promise<LiveGameState> {
+  return toClientState(await ensureRow(gameId), Date.now());
 }
 
-const periodSeconds = (period: number) =>
-  period > REGULATION_PERIODS ? OVERTIME_SECONDS : PERIOD_SECONDS;
-
-export async function ensureState(gameId: string): Promise<LiveGameState> {
-  const game = await prisma.game.findUnique({ where: { id: gameId } });
-  if (!game) throw ApiError.notFound('Game not found');
-  const state = await prisma.liveGame.upsert({
-    create: { gameId, lineup: [], teamFouls: [0, 0, 0, 0] },
-    update: {},
-    where: { gameId },
-  });
-  return normalise(state as LiveGameState);
+/** Opponent name for activity-log labels; null when the game is gone. */
+export async function getGameOpponent(gameId: string): Promise<null | string> {
+  const game = await prisma.game.findUnique({ select: { opponent: true }, where: { id: gameId } });
+  return game?.opponent ?? null;
 }
 
 export async function getState(gameId: string): Promise<LiveGameState | null> {
-  const state = await prisma.liveGame.findUnique({ where: { gameId } });
-  return state ? normalise(state as LiveGameState) : null;
+  const row = await prisma.liveGame.findUnique({ where: { gameId } });
+  return row ? toClientState(row, Date.now()) : null;
 }
 
 export async function listEvents(gameId: string) {
@@ -265,23 +141,326 @@ export async function listEvents(gameId: string) {
 }
 
 /**
- * Projects a stored row to "now": a running clock has `clockSeconds` as of
- * `updatedAt`, so the elapsed whole seconds are burned in AND `updatedAt`
- * moves forward by the same amount — clients tick down from `updatedAt`, so
- * leaving the old timestamp would subtract the elapsed time twice.
+ * Optimistic concurrency: read, compute, then write only if the row is
+ * unchanged (its updatedAt is the version). Another instance winning the
+ * race makes us re-read and re-apply on top of its write — no lost taps.
  */
-function normalise(state: LiveGameState): LiveGameState {
-  const now = Date.now();
-  const elapsed =
-    state.clockRunning && state.updatedAt
-      ? Math.max(0, Math.floor((now - state.updatedAt.getTime()) / 1000))
-      : 0;
+async function applyWithRetry(gameId: string, action: TimedAction): Promise<ActionResult> {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await applyOnce(gameId, action);
+    } catch (error) {
+      if (!(error instanceof StaleWriteError) || attempt >= MAX_WRITE_ATTEMPTS) throw error;
+    }
+  }
+}
+
+async function applyOnce(gameId: string, action: TimedAction): Promise<ActionResult> {
+  const row = await ensureRow(gameId);
+  // Everything happens at the tap moment: a pause freezes the clock where
+  // the scorer saw it, not where it was when the request arrived.
+  const at = tapTime(action.at, anchorOf(row), Date.now());
+  const before = projectClock(row, at);
+
+  // An ended game is published on the schedule; changing the scoreboard
+  // afterwards would make the two disagree. Reset reopens it.
+  if (before.status === 'FINAL' && action.type !== 'reset') {
+    throw ApiError.conflict('The game has ended — reset it to keep scoring');
+  }
+
+  if (action.type === 'undo') {
+    const target = await findUndoableEvent(gameId);
+    if (!target) throw ApiError.badRequest('Nothing to undo');
+    const next = reduce(before, inverseOf(target.payload as unknown as Action));
+    const { event, state } = await persist(row, next, at, {
+      event: { payload: { eventId: target.id }, type: 'undo' },
+      reverses: target.id,
+    });
+    return { event, reversedEventId: target.id, state };
+  }
+
+  const next = reduce(before, action);
+  const { event, state } = await persist(row, next, at, {
+    event: { payload: action, type: action.type },
+    gameSync: scheduleSyncFor(action, before, next),
+  });
+  return { event, milestone: milestoneOf(action, before), state };
+}
+
+async function ensureRow(gameId: string): Promise<LiveGame> {
+  const existing = await prisma.liveGame.findUnique({ where: { gameId } });
+  if (existing) return existing;
+  const game = await prisma.game.findUnique({ select: { id: true }, where: { id: gameId } });
+  if (!game) throw ApiError.notFound('Game not found');
+  return prisma.liveGame.upsert({
+    create: {
+      clockAnchorAt: new Date(),
+      gameId,
+      lineup: [],
+      opponentFouls: emptyFouls(),
+      teamFouls: emptyFouls(),
+    },
+    update: {},
+    where: { gameId },
+  });
+}
+
+/** The tap moment, bounded to [max(anchor, now - MAX_TAP_AGE_MS), now]:
+ *  never in the future, never before the last recorded change. */
+function tapTime(at: number | undefined, anchor: number, now: number): number {
+  const earliest = Math.max(anchor, now - MAX_TAP_AGE_MS);
+  return Math.min(now, Math.max(earliest, at ?? now));
+}
+
+function anchorOf(row: LiveGame): number {
+  return (row.clockAnchorAt ?? row.updatedAt).getTime();
+}
+
+/** The stored scoreboard with a running clock wound forward to `at`. */
+function projectClock(row: LiveGame, at: number): ScoreboardFields {
+  const elapsed = row.clockRunning ? Math.max(0, (at - anchorOf(row)) / 1000) : 0;
+  // Capped at the period length: rows saved under the old 12-minute
+  // quarters read as a full 10:00 instead of an impossible 12:00.
+  const stored = Math.min(row.clockSeconds, periodSeconds(row.period));
+  const clockSeconds = Math.max(0, stored - elapsed);
   return {
-    ...state,
-    clockRunning: state.clockRunning && state.clockSeconds - elapsed > 0,
-    clockSeconds: Math.max(0, state.clockSeconds - elapsed),
-    opponentFouls: state.opponentFouls ?? [0, 0, 0, 0],
-    teamFouls: state.teamFouls ?? [0, 0, 0, 0],
-    updatedAt: elapsed > 0 ? new Date(state.updatedAt.getTime() + elapsed * 1000) : state.updatedAt,
+    clockRunning: row.clockRunning && clockSeconds > 0,
+    clockSeconds,
+    endedAt: row.endedAt,
+    lineup: [...row.lineup],
+    opponentFouls: withFoulSlots(row.opponentFouls),
+    opponentScore: row.opponentScore,
+    period: row.period,
+    startedAt: row.startedAt,
+    status: row.status,
+    teamFouls: withFoulSlots(row.teamFouls),
+    teamScore: row.teamScore,
+    timeouts: [...row.timeouts],
   };
+}
+
+async function findUndoableEvent(gameId: string): Promise<LiveGameEvent | null> {
+  // Events from before a reset belong to a scoreboard that no longer exists.
+  const lastReset = await prisma.liveGameEvent.findFirst({
+    orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+    select: { createdAt: true },
+    where: { gameId, type: 'reset' },
+  });
+  return prisma.liveGameEvent.findFirst({
+    orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+    where: {
+      gameId,
+      reversed: false,
+      type: { in: UNDOABLE_TYPES },
+      ...(lastReset ? { createdAt: { gt: lastReset.createdAt } } : {}),
+    },
+  });
+}
+
+/**
+ * The game rules, as one pure step: scoreboard + action → next scoreboard.
+ * Undo runs through here too (with the inverse action), so no rule is
+ * written twice.
+ */
+function reduce(state: ScoreboardFields, action: Action): ScoreboardFields {
+  const next: ScoreboardFields = {
+    ...state,
+    lineup: [...state.lineup],
+    opponentFouls: [...state.opponentFouls],
+    teamFouls: [...state.teamFouls],
+    timeouts: [...state.timeouts],
+  };
+  switch (action.type) {
+    case 'adjust_score':
+      addPoints(next, action.side, action.amount);
+      break;
+    case 'clock':
+      if (typeof action.seconds === 'number') {
+        next.clockSeconds = clamp(action.seconds, 0, periodSeconds(next.period));
+      }
+      next.clockRunning = action.running && next.clockSeconds > 0;
+      break;
+    case 'end':
+      next.status = 'FINAL';
+      next.clockRunning = false;
+      next.endedAt = new Date();
+      break;
+    case 'foul': {
+      const fouls = action.side === 'team' ? next.teamFouls : next.opponentFouls;
+      const slot = foulSlot(action.period ?? next.period);
+      fouls[slot] = Math.max(0, (fouls[slot] ?? 0) + action.amount);
+      break;
+    }
+    case 'halftime':
+      next.status = 'HALFTIME';
+      next.clockRunning = false;
+      break;
+    case 'lineup':
+      // Any size up to five is legal: the scorer builds the floor tap-by-tap
+      // and an empty list clears it.
+      if (action.playerIds.length > MAX_ON_FLOOR) {
+        throw ApiError.badRequest('At most five players can be on the floor');
+      }
+      next.lineup = action.playerIds;
+      break;
+    case 'period':
+      next.period = clamp(action.period, 1, MAX_PERIOD);
+      next.clockSeconds = periodSeconds(next.period);
+      next.clockRunning = false;
+      break;
+    case 'reset':
+      // Full manual reset — the escape hatch for a game started (or scored)
+      // by mistake: everything returns to a clean pre-tip state.
+      return {
+        clockRunning: false,
+        clockSeconds: clamp(action.seconds ?? PERIOD_SECONDS, 0, PERIOD_SECONDS),
+        endedAt: null,
+        lineup: [],
+        opponentFouls: emptyFouls(),
+        opponentScore: 0,
+        period: 1,
+        startedAt: null,
+        status: 'NOT_STARTED',
+        teamFouls: emptyFouls(),
+        teamScore: 0,
+        timeouts: [MAX_TIMEOUTS, MAX_TIMEOUTS],
+      };
+    case 'score':
+      addPoints(next, action.side, action.points);
+      break;
+    case 'start':
+      next.status = 'LIVE';
+      next.clockRunning = next.clockSeconds > 0;
+      next.startedAt = state.startedAt ?? new Date();
+      break;
+    case 'timeout': {
+      const index = action.side === 'team' ? 0 : 1;
+      next.timeouts[index] = clamp((next.timeouts[index] ?? 0) + action.amount, 0, MAX_TIMEOUTS);
+      break;
+    }
+    case 'undo':
+      throw ApiError.badRequest('Undo is resolved before the rules run');
+  }
+  return next;
+}
+
+/** The action that cancels an undoable one (same side, same period). */
+function inverseOf(action: Action): Action {
+  switch (action.type) {
+    case 'adjust_score':
+      return { amount: -action.amount, side: action.side, type: 'adjust_score' };
+    case 'foul':
+      return {
+        amount: -action.amount as -1 | 1,
+        period: action.period,
+        side: action.side,
+        type: 'foul',
+      };
+    case 'score':
+      return { amount: -action.points, side: action.side, type: 'adjust_score' };
+    case 'timeout':
+      return { amount: -action.amount as -1 | 1, side: action.side, type: 'timeout' };
+    default:
+      throw ApiError.badRequest('This event cannot be undone automatically');
+  }
+}
+
+/** The scoreboard and the schedule are one game: ending it publishes the
+ *  result on the Game row; resetting a game that had ended reopens it. */
+function scheduleSyncFor(
+  action: Action,
+  before: ScoreboardFields,
+  next: ScoreboardFields,
+): GameSync | undefined {
+  if (action.type === 'end') {
+    return { opponentScore: next.opponentScore, status: 'FINAL', teamScore: next.teamScore };
+  }
+  if (action.type === 'reset' && before.status === 'FINAL') {
+    return { opponentScore: null, status: 'SCHEDULED', teamScore: null };
+  }
+  return undefined;
+}
+
+/** "Start" doubles as clock resume, so only the first tip-off is a milestone. */
+function milestoneOf(action: Action, before: ScoreboardFields): ActionResult['milestone'] {
+  if (action.type === 'start' && before.status === 'NOT_STARTED') return 'STARTED';
+  if (action.type === 'end') return 'FINISHED';
+  return undefined;
+}
+
+/**
+ * Writes the next scoreboard (anchored at the tap moment), its history
+ * event and any schedule change in one transaction — but only if nobody
+ * else wrote the row since `row` was read.
+ */
+async function persist(
+  row: LiveGame,
+  next: ScoreboardFields,
+  at: number,
+  write: {
+    event: { payload: object; type: string };
+    gameSync?: GameSync;
+    reverses?: string;
+  },
+): Promise<{ event: LiveGameEvent; state: LiveGameState }> {
+  const [event, updated] = await prisma.$transaction(async (tx) => {
+    const { count } = await tx.liveGame.updateMany({
+      data: { ...next, clockAnchorAt: new Date(at) },
+      where: { gameId: row.gameId, updatedAt: row.updatedAt },
+    });
+    if (count === 0) throw new StaleWriteError();
+    if (write.reverses) {
+      await tx.liveGameEvent.update({ data: { reversed: true }, where: { id: write.reverses } });
+    }
+    const created = await tx.liveGameEvent.create({
+      data: { gameId: row.gameId, payload: write.event.payload, type: write.event.type },
+    });
+    if (write.gameSync) {
+      await tx.game.update({ data: write.gameSync, where: { id: row.gameId } });
+    }
+    return [created, await tx.liveGame.findUniqueOrThrow({ where: { gameId: row.gameId } })];
+  });
+  return { event, state: toClientState(updated, Date.now()) };
+}
+
+/** Local stream (same-instance viewers) and hosted push (everyone else). */
+async function broadcast(gameId: string, state: LiveGameState): Promise<void> {
+  emitLiveGameChanged(gameId, state);
+  await publishLiveGameState(gameId, state);
+}
+
+function toClientState(row: LiveGame, now: number): LiveGameState {
+  return {
+    ...projectClock(row, now),
+    gameId: row.gameId,
+    id: row.id,
+    serverTime: new Date(now),
+    updatedAt: row.updatedAt,
+  };
+}
+
+function addPoints(state: ScoreboardFields, side: Side, points: number): void {
+  if (side === 'team') state.teamScore = Math.max(0, state.teamScore + points);
+  else state.opponentScore = Math.max(0, state.opponentScore + points);
+}
+
+/** FIBA: overtime team fouls carry on from the 4th quarter's count. */
+function foulSlot(period: number): number {
+  return Math.min(period, REGULATION_PERIODS) - 1;
+}
+
+function periodSeconds(period: number): number {
+  return period > REGULATION_PERIODS ? OVERTIME_SECONDS : PERIOD_SECONDS;
+}
+
+function withFoulSlots(fouls: number[]): number[] {
+  return Array.from({ length: REGULATION_PERIODS }, (_, i) => fouls[i] ?? 0);
+}
+
+function emptyFouls(): number[] {
+  return Array.from({ length: REGULATION_PERIODS }, () => 0);
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
 }

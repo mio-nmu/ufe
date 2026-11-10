@@ -38,17 +38,40 @@ test.describe("admin console", () => {
     await loginAsManager(page);
   });
 
-  test("dashboard shows stat cards and the registrations chart", async ({
+  test("dashboard shows website visitors with a working range toggle", async ({
     page,
   }) => {
     await expect(
       page.getByRole("heading", { name: "Admin dashboard" }),
     ).toBeVisible();
-    await expect(page.getByText("Total users")).toBeVisible();
-    await expect(page.getByText("Active")).toBeVisible();
-    await expect(page.getByText("Admins")).toBeVisible();
+    await expect(page.getByText("Website visitors")).toBeVisible();
     await expect(
-      page.getByRole("img", { name: /registrations/i }),
+      page.getByRole("img", { name: /per week, 1 month/i }),
+    ).toBeVisible();
+
+    await page.getByRole("button", { name: "1 year" }).click();
+    await expect(page.getByRole("button", { name: "1 year" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    await expect(
+      page.getByRole("img", { name: /per month, 1 year/i }),
+    ).toBeVisible();
+  });
+
+  test("dashboard shows the game timeline and recent activity", async ({
+    page,
+  }) => {
+    await expect(page.getByText("Game timeline")).toBeVisible();
+    await expect(
+      page.getByRole("img", { name: /games played per month/i }),
+    ).toBeVisible();
+    await expect(page.getByText("Recent activity")).toBeVisible();
+
+    await page.getByRole("link", { name: "View all" }).click();
+    await expect(page).toHaveURL(/\/admin\/activity$/);
+    await expect(
+      page.getByRole("heading", { name: "Өөрчлөлтийн түүх" }),
     ).toBeVisible();
   });
 

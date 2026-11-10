@@ -27,18 +27,52 @@ export interface Paginated<T> {
   meta: PaginationMeta;
 }
 
-export interface DailyCount {
-  date: string;
-  count: number;
+export type ActivityAction =
+  "CREATED" | "UPDATED" | "DELETED" | "STARTED" | "FINISHED";
+
+export type ActivityEntity =
+  | "executive"
+  | "game"
+  | "historyPhoto"
+  | "liveGame"
+  | "media"
+  | "mediaAlbum"
+  | "newsPost"
+  | "player"
+  | "shopProduct"
+  | "siteContent"
+  | "user"
+  | "video";
+
+/** One admin write from the activity log, newest first. */
+export interface ActivityEntry {
+  id: string;
+  action: ActivityAction;
+  entity: ActivityEntity;
+  entityId: string | null;
+  /** Subject name snapshot taken at write time. */
+  label: string;
+  actorEmail: string | null;
+  createdAt: string;
 }
 
-export interface AdminStats {
-  users: {
-    total: number;
-    active: number;
-    admins: number;
-  };
-  registrations: DailyCount[];
+/** Games per calendar month for the dashboard "Game timeline". */
+export interface GameTimeline {
+  /** Oldest first; `start` is the month's first UTC day (YYYY-MM-DD). */
+  months: { start: string; count: number }[];
+}
+
+export type VisitRange = "month" | "quarter" | "year";
+
+/** Homepage visits per bucket for one admin dashboard range. */
+export interface VisitSeries {
+  range: VisitRange;
+  bucket: "week" | "month";
+  /** Oldest first; `start` is the bucket's first UTC day (YYYY-MM-DD). */
+  buckets: { start: string; count: number }[];
+  total: number;
+  /** Same number of buckets immediately before the charted ones. */
+  previousTotal: number;
 }
 
 export interface AuthPayload {

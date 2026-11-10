@@ -122,6 +122,57 @@ describe('games', () => {
     const tips = (res.body.data.items as Array<{ tipsAt: string }>).map((game) => game.tipsAt);
     expect(tips).toEqual(['2091-03-05T11:00:00.000Z', '2091-03-20T11:00:00.000Z']);
   });
+  it('accepts the admin form as sent: blank optional fields arrive as null and take defaults', async () => {
+    // Exactly what fd's collection form posts when only opponent + time are filled in.
+    const res = await createAs(adminBearer, '/games', {
+      competition: null,
+      isHome: true,
+      note: null,
+      opponent: 'Form Rival',
+      opponentColor: null,
+      opponentLogo: null,
+      opponentScore: null,
+      opponentShort: null,
+      round: null,
+      status: 'SCHEDULED',
+      streamUrl: null,
+      teamScore: null,
+      ticketUrl: null,
+      tipsAt: '2091-05-01T11:00:00.000Z',
+      venue: null,
+    });
+
+    expect(res.status).toBe(201);
+    expect(res.body.data.game).toMatchObject({
+      competition: 'Их сургуулиудын аварга шалгаруулах тэмцээн',
+      venue: 'UFE Арена',
+    });
+  });
+
+  it('keeps the stored venue when an edit leaves it blank', async () => {
+    const created = await createAs(adminBearer, '/games', {
+      opponent: 'Edit Rival',
+      tipsAt: '2091-05-02T11:00:00.000Z',
+      venue: 'Away Gym',
+    });
+    const res = await request(app)
+      .patch(`${API}/content/games/${created.body.data.game.id}`)
+      .set('Authorization', adminBearer)
+      .send({ venue: null });
+    expect(res.status).toBe(200);
+    expect(res.body.data.game.venue).toBe('Away Gym');
+  });
+});
+
+describe('news form defaults', () => {
+  it('a blank category takes the default instead of failing validation', async () => {
+    const res = await createAs(adminBearer, '/news', {
+      ...newsBody('blank-category', true),
+      category: null,
+    });
+    expect(res.status).toBe(201);
+    expect(res.body.data.post.category).toBe('Мэдээ');
+  });
 });
 
 describe('game opponent colour', () => {

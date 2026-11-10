@@ -169,6 +169,130 @@ describe('GET /api/v1/admin/stats', () => {
   });
 });
 
+describe('homepage visits → GET /api/v1/admin/stats/visits', () => {
+  it('counts every homepage load anonymously and reports it per range', async () => {
+    const admin = await createTestUser({ role: 'ADMIN' });
+    const session = await login(admin.email, admin.password);
+    const readVisits = async (range: string) =>
+      (
+        await request(app)
+          .get(`${API}/admin/stats/visits?range=${range}`)
+          .set('Authorization', `Bearer ${session.accessToken}`)
+      ).body.data;
+
+    const before = await readVisits('month');
+
+    const responses = await Promise.all(
+      Array.from({ length: 3 }, () => request(app).post(`${API}/analytics/visits`)),
+    );
+    for (const res of responses) expect(res.status).toBe(201);
+
+    const month = await readVisits('month');
+    expect(month.buckets).toHaveLength(5);
+    expect(month.total).toBe(before.total + 3);
+    expect(month.buckets.at(-1).count).toBe(before.buckets.at(-1).count + 3);
+
+    expect((await readVisits('quarter')).buckets).toHaveLength(13);
+    const year = await readVisits('year');
+    expect(year.bucket).toBe('month');
+    expect(year.buckets).toHaveLength(12);
+  });
+
+  it('rejects unknown ranges and non-admins', async () => {
+    const admin = await createTestUser({ role: 'ADMIN' });
+    const adminSession = await login(admin.email, admin.password);
+    const bad = await request(app)
+      .get(`${API}/admin/stats/visits?range=week`)
+      .set('Authorization', `Bearer ${adminSession.accessToken}`);
+    expect(bad.status).toBe(400);
+
+    const user = await createTestUser();
+    const userSession = await login(user.email, user.password);
+    const forbidden = await request(app)
+      .get(`${API}/admin/stats/visits`)
+      .set('Authorization', `Bearer ${userSession.accessToken}`);
+    expect(forbidden.status).toBe(403);
+  });
+});
+
+describe('GET /api/v1/admin/stats/games', () => {
+  it('counts played and past-unfinished games per month, skipping cancelled and future ones', async () => {
+    const admin = await createTestUser({ role: 'ADMIN' });
+    const { accessToken } = await login(admin.email, admin.password);
+    const bearer = `Bearer ${accessToken}`;
+    const readThisMonth = async () => {
+      const res = await request(app).get(`${API}/admin/stats/games`).set('Authorization', bearer);
+      expect(res.status).toBe(200);
+      expect(res.body.data.months).toHaveLength(6);
+      return res.body.data.months.at(-1).count as number;
+    };
+    const addGame = (status: string, tipsAt: Date) =>
+      request(app)
+        .post(`${API}/content/games`)
+        .set('Authorization', bearer)
+        .send({ opponent: `Timeline ${status}`, status, tipsAt: tipsAt.toISOString() });
+
+    const before = await readThisMonth();
+    // Start of today (UTC) is always in the current month and already past.
+    const now = new Date();
+    const earlierToday = new Date(
+      Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()),
+    );
+    await addGame('FINAL', earlierToday);
+    await addGame('SCHEDULED', earlierToday);
+    await addGame('CANCELLED', earlierToday);
+    await addGame('SCHEDULED', new Date(Date.now() + 365 * 24 * 60 * 60 * 1000));
+
+    expect(await readThisMonth()).toBe(before + 2);
+  });
+});
+
+describe('GET /api/v1/admin/activity', () => {
+  it('logs admin writes newest first and keeps the name of deleted rows', async () => {
+    const admin = await createTestUser({ role: 'ADMIN' });
+    const { accessToken } = await login(admin.email, admin.password);
+    const bearer = `Bearer ${accessToken}`;
+
+    const created = await request(app)
+      .post(`${API}/content/players`)
+      .set('Authorization', bearer)
+      .send({ name: 'Activity Player', number: 77, slug: 'activity-player' });
+    expect(created.status).toBe(201);
+    const playerId = created.body.data.player.id as string;
+    await request(app).delete(`${API}/content/players/${playerId}`).set('Authorization', bearer);
+
+    const res = await request(app)
+      .get(`${API}/admin/activity?pageSize=100`)
+      .set('Authorization', bearer);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.meta).toMatchObject({ page: 1, pageSize: 100 });
+    // Other e2e files write to the same log in parallel — look at this player only.
+    const ownEntries = (res.body.data.items as { entityId: string }[]).filter(
+      (entry) => entry.entityId === playerId,
+    );
+    expect(ownEntries).toMatchObject([
+      {
+        action: 'DELETED',
+        actorEmail: admin.email,
+        entity: 'player',
+        entityId: playerId,
+        label: 'Activity Player',
+      },
+      { action: 'CREATED', entity: 'player', entityId: playerId, label: 'Activity Player' },
+    ]);
+  });
+
+  it('is ADMIN-only', async () => {
+    const user = await createTestUser();
+    const { accessToken } = await login(user.email, user.password);
+    const res = await request(app)
+      .get(`${API}/admin/activity`)
+      .set('Authorization', `Bearer ${accessToken}`);
+    expect(res.status).toBe(403);
+  });
+});
+
 describe('user profile area stays reachable for plain users', () => {
   it('lets a USER read their own profile', async () => {
     const user = await createTestUser({ name: 'Profile Peek' });

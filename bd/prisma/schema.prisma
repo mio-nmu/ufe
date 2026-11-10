@@ -134,8 +134,13 @@ model LiveGame {
   gameId        String    @unique @db.ObjectId
   status        String    @default("NOT_STARTED") // NOT_STARTED | LIVE | HALFTIME | FINAL
   period        Int       @default(1)
-  clockSeconds  Int       @default(720)
+  // Seconds left as of clockAnchorAt — fractional, so stoppages never
+  // round the clock (a game has 100+ of them).
+  clockSeconds  Float     @default(600)
   clockRunning  Boolean   @default(false)
+  // The moment clockSeconds was measured (the scorer's tap, in server time).
+  // Older rows have none and fall back to updatedAt.
+  clockAnchorAt DateTime?
   teamScore     Int       @default(0)
   opponentScore Int       @default(0)
   teamFouls     Int[]     @default([])
@@ -293,4 +298,33 @@ model Media {
   @@index([createdAt(sort: Desc)])
   @@index([uploadedBy])
   @@map("media")
+}
+
+// Audience reach: one counter per UTC day, bumped on every render/refresh of
+// the public homepage ("/"). Plain load counts — no visitor identity stored.
+model SiteVisitDay {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  date      String   @unique // UTC YYYY-MM-DD
+  count     Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("site_visit_days")
+}
+
+// Admin-side history for the dashboard "Recent activity" feed: one row per
+// successful admin write. `label` is a snapshot of the subject's name at
+// write time, so deleted rows still read sensibly.
+model ActivityLog {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  action     String // CREATED | UPDATED | DELETED | STARTED | FINISHED
+  entity     String // see ACTIVITY_ENTITIES in src/config/constants.ts
+  entityId   String?  @map("entity_id")
+  label      String
+  actorId    String?  @map("actor_id") @db.ObjectId
+  actorEmail String?  @map("actor_email")
+  createdAt  DateTime @default(now())
+
+  @@index([createdAt(sort: Desc)])
+  @@map("activity_logs")
 }

@@ -98,7 +98,9 @@ export async function registerDirectMedia(input: {
  * Deletes the DB row, then the stored asset. A failed asset deletion is
  * logged and REPORTED (assetDeleted: false) — never silently orphaned.
  */
-export async function removeMedia(id: string): Promise<{ assetDeleted: boolean; id: string }> {
+export async function removeMedia(
+  id: string,
+): Promise<{ assetDeleted: boolean; id: string; publicId: string }> {
   const existing = await prisma.media.findUnique({
     select: { publicId: true },
     where: { id },
@@ -119,7 +121,7 @@ export async function removeMedia(id: string): Promise<{ assetDeleted: boolean; 
       'Cloudinary delete failed — asset is orphaned, remove it in the dashboard',
     );
   }
-  return { assetDeleted, id };
+  return { assetDeleted, id, publicId: existing.publicId };
 }
 
 export async function updateMediaAltText(id: string, altText: string) {

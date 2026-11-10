@@ -1,12 +1,15 @@
 import type { Request, RequestHandler, Response, Router } from 'express';
 import type { ZodType } from 'zod';
 
+import type { ActivityEntity } from '../../types/index.js';
+
 import { ApiError } from '../../lib/ApiError.js';
 import { asyncHandler } from '../../lib/asyncHandler.js';
 import { prisma } from '../../lib/prisma.js';
 import { optionalAuth } from '../../middleware/authenticate.js';
 import { requireAdmin } from '../../middleware/requireRole.js';
 import { validate } from '../../middleware/validate.js';
+import { recordActivity } from '../../services/admin/activity.service.js';
 import { compact } from '../../utils/content-payloads.js';
 import { ok } from '../../utils/http.js';
 import { idParamSchema, slugParamSchema } from '../../validators/content/content.validators.js';
@@ -16,6 +19,8 @@ export type ContentModel =
   'executive' | 'game' | 'mediaAlbum' | 'newsPost' | 'player' | 'shopProduct' | 'video';
 
 export interface CrudResource {
+  /** Activity-log subject: which entity this is and how a row is named. */
+  activity: { entity: ActivityEntity; label: (row: Row) => string };
   /** Removes rows that belong to this one, before it is deleted. */
   beforeDelete?: (id: string) => Promise<unknown>;
   /** Envelope key for single-row responses: `{ [key]: row }`. */
@@ -93,12 +98,21 @@ export function mountCrud(router: Router, path: string, resource: CrudResource):
     );
   }
 
+  const recordWrite = (req: Request, action: 'CREATED' | 'DELETED' | 'UPDATED', row: Row) =>
+    recordActivity(req.user, {
+      action,
+      entity: resource.activity.entity,
+      entityId: String(row.id),
+      label: resource.activity.label(row),
+    });
+
   router.post(
     path,
     ...requireAdmin,
     validate({ body: resource.schemas.create }),
     asyncHandler(async (req: Request, res: Response) => {
-      const row = await model.create({ data: prepare(req.body as Row) });
+      const row = (await model.create({ data: prepare(req.body as Row) })) as Row;
+      await recordWrite(req, 'CREATED', row);
       ok(res, { [resource.key]: row }, 201);
     }),
   );
@@ -109,7 +123,8 @@ export function mountCrud(router: Router, path: string, resource: CrudResource):
     validate({ body: resource.schemas.update, params: idParamSchema }),
     asyncHandler(async (req: Request, res: Response) => {
       const { id } = req.params as { id: string };
-      const row = await model.update({ data: prepare(req.body as Row), where: { id } });
+      const row = (await model.update({ data: prepare(req.body as Row), where: { id } })) as Row;
+      await recordWrite(req, 'UPDATED', row);
       ok(res, { [resource.key]: row });
     }),
   );
@@ -120,8 +135,11 @@ export function mountCrud(router: Router, path: string, resource: CrudResource):
     validate({ params: idParamSchema }),
     asyncHandler(async (req: Request, res: Response) => {
       const { id } = req.params as { id: string };
+      // Read first: the log keeps the row's name after it is gone.
+      const row = (await model.findFirst({ where: { id } })) as null | Row;
       await resource.beforeDelete?.(id);
       await model.delete({ where: { id } });
+      if (row) await recordWrite(req, 'DELETED', row);
       ok(res, { deleted: true });
     }),
   );

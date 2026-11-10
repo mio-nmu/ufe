@@ -90,7 +90,8 @@ function base(overrides: Partial<LiveGameState> = {}): LiveGameState {
     lineup: [],
     startedAt: null,
     endedAt: null,
-    // "now" is pinned inside each test via the elapsed override
+    // The snapshot is 10s old: a running clock has moved on since.
+    serverTime: new Date(Date.now() - 10_000).toISOString(),
     updatedAt: new Date(Date.now() - 10_000).toISOString(),
     ...overrides,
   };
@@ -206,7 +207,7 @@ describe("projectAction clock handling", () => {
     );
     expect(next.status).toBe("NOT_STARTED");
     expect(next.period).toBe(1);
-    expect(next.clockSeconds).toBe(720);
+    expect(next.clockSeconds).toBe(600);
     expect(next.clockRunning).toBe(false);
     expect(next.teamScore).toBe(0);
     expect(next.opponentScore).toBe(0);
@@ -299,5 +300,149 @@ describe("LiveScorer burst guard", () => {
       stream?.onopen?.();
     });
     await waitFor(() => expect(bigScore(container)).toBe("8"));
+  });
+});
+
+describe("LiveScorer game picker", () => {
+  it("opens the scheduled game nearest to now, not the oldest unfinished one", async () => {
+    const stale = {
+      ...game,
+      id: "stale",
+      opponent: "Never finalised",
+      tipsAt: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString(),
+    };
+    const tonight = {
+      ...game,
+      id: "tonight",
+      opponent: "Tonight",
+      tipsAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+    };
+    mocks.api.get.mockImplementation((path: string) =>
+      path.includes("status=SCHEDULED")
+        ? Promise.resolve({ items: [stale, tonight] })
+        : Promise.resolve({ items: [] }),
+    );
+
+    await mountScorer();
+
+    expect(screen.getByRole<HTMLSelectElement>("combobox").value).toBe(
+      "tonight",
+    );
+  });
+});
+
+describe("overtime clock controls", () => {
+  it("resets to the period's own length", async () => {
+    mocks.liveGamesService.ensure.mockResolvedValue({
+      state: base({ period: 5, clockRunning: false, clockSeconds: 120 }),
+    });
+    mocks.liveGamesService.action.mockResolvedValueOnce(
+      result(base({ period: 5, clockRunning: false, clockSeconds: 300 })),
+    );
+    await mountScorer();
+
+    fireEvent.click(await screen.findByRole("button", { name: "Reset 05:00" }));
+
+    expect(mocks.liveGamesService.action).toHaveBeenCalledWith(
+      game.id,
+      expect.objectContaining({ running: false, seconds: 300, type: "clock" }),
+    );
+  });
+
+  it("projects a typed time no longer than the overtime", () => {
+    const next = projectAction(base({ period: 5, clockRunning: false }), {
+      running: false,
+      seconds: 720,
+      type: "clock",
+    });
+    expect(next.clockSeconds).toBe(300);
+  });
+});
+
+describe("clock toggle", () => {
+  it.each([
+    [
+      { status: "NOT_STARTED" as const, clockRunning: false },
+      "Start game",
+      { type: "start" },
+    ],
+    [
+      { status: "LIVE" as const, clockRunning: true },
+      "Stop clock",
+      { running: false, type: "clock" },
+    ],
+    [
+      { status: "LIVE" as const, clockRunning: false },
+      "Start clock",
+      { running: true, type: "clock" },
+    ],
+    [
+      { status: "HALFTIME" as const, clockRunning: false },
+      "Resume game",
+      { type: "start" },
+    ],
+  ])(
+    "%o shows %s and sends the matching action",
+    async (overrides, label, sent) => {
+      mocks.liveGamesService.ensure.mockResolvedValue({
+        state: base(overrides),
+      });
+      mocks.liveGamesService.action.mockResolvedValueOnce(
+        result(base(overrides)),
+      );
+      await mountScorer();
+
+      fireEvent.click(await screen.findByRole("button", { name: label }));
+
+      expect(mocks.liveGamesService.action).toHaveBeenCalledWith(
+        game.id,
+        expect.objectContaining(sent),
+      );
+    },
+  );
+
+  it("stamps every action with the tap moment in server time", async () => {
+    mocks.liveGamesService.action.mockResolvedValueOnce(result(base()));
+    await mountScorer();
+    const before = Date.now();
+
+    fireEvent.click(screen.getAllByRole("button", { name: "+2" })[0]);
+
+    const sent = mocks.liveGamesService.action.mock.calls[0]?.[1] as {
+      at: number;
+    };
+    expect(sent.at).toBeGreaterThanOrEqual(before - 5);
+    expect(sent.at).toBeLessThanOrEqual(Date.now() + 5);
+  });
+});
+
+describe("projectAction at the tap moment", () => {
+  it("freezes a running clock exactly where it stood at the tap", () => {
+    const snapshot = base({
+      clockRunning: true,
+      clockSeconds: 600,
+      serverTime: "2026-11-04T10:00:00.000Z",
+    });
+    const tap = new Date("2026-11-04T10:00:03.400Z").getTime();
+
+    const next = projectAction(
+      snapshot,
+      { running: false, type: "clock" },
+      tap,
+    );
+
+    expect(next.clockSeconds).toBeCloseTo(596.6, 5);
+    expect(next.clockRunning).toBe(false);
+    expect(next.serverTime).toBe("2026-11-04T10:00:03.400Z");
+  });
+
+  it("counts overtime fouls on the 4th-quarter slot", () => {
+    const next = projectAction(base({ period: 5, teamFouls: [0, 0, 0, 4] }), {
+      amount: 1,
+      period: 5,
+      side: "team",
+      type: "foul",
+    });
+    expect(next.teamFouls).toEqual([0, 0, 0, 5]);
   });
 });

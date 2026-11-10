@@ -5,6 +5,7 @@ import type { SiteContentPutInput } from '../../validators/content/content.valid
 import { SITE_CONTENT_MAX_JSON_LENGTH, SITE_CONTENT_PAGES } from '../../config/constants.js';
 import { ApiError } from '../../lib/ApiError.js';
 import { prisma } from '../../lib/prisma.js';
+import { recordActivity } from '../../services/admin/activity.service.js';
 import { ok } from '../../utils/http.js';
 
 /**
@@ -46,6 +47,12 @@ export async function putSiteContent(req: Request, res: Response): Promise<void>
     create: { data: data as object, page, section },
     update: { data: data as object },
     where: { page_section: { page, section } },
+  });
+  await recordActivity(req.user, {
+    action: 'UPDATED',
+    entity: 'siteContent',
+    entityId: `${page}/${section}`,
+    label: `${page} / ${section}`,
   });
   ok(res, { row });
 }

@@ -58,7 +58,7 @@ export async function listHistoryPhotos() {
 
 export async function removeHistoryPhoto(
   id: string,
-): Promise<{ assetDeleted: boolean; deleted: true; id: string }> {
+): Promise<{ assetDeleted: boolean; deleted: true; id: string; publicId: string }> {
   const existing = await prisma.historyPhoto.findUnique({
     select: { publicId: true },
     where: { id },
@@ -69,7 +69,7 @@ export async function removeHistoryPhoto(
 
   await prisma.historyPhoto.delete({ where: { id } });
   const assetDeleted = await destroyAsset(existing.publicId);
-  return { assetDeleted, deleted: true, id };
+  return { assetDeleted, deleted: true, id, publicId: existing.publicId };
 }
 
 export async function updateHistoryPhoto(

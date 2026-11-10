@@ -421,5 +421,6 @@ function validateFile(file: File): string | null {
 }
 
 async function uploadImage(file: File): Promise<string> {
-  return uploadAdminImage(file, `upload-${file.name}`);
+  // Backend caps alt text at 200 chars (MEDIA_ALT_MAX_LENGTH).
+  return uploadAdminImage(file, `upload-${file.name}`.slice(0, 200));
 }

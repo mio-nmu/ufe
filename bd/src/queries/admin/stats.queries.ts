@@ -41,3 +41,14 @@ export async function getUserCounts(): Promise<UserCounts> {
   ]);
   return { active, admins, total };
 }
+
+/** Tip-off days of games played in [since, until): everything not cancelled
+ *  whose tip-off has passed. Friendly matches count too once they are
+ *  stored as games. One row per game. */
+export async function getPlayedGameDays(since: Date, until: Date): Promise<DailyCountRow[]> {
+  const games = await prisma.game.findMany({
+    select: { tipsAt: true },
+    where: { status: { not: 'CANCELLED' }, tipsAt: { gte: since, lt: until } },
+  });
+  return games.map(({ tipsAt }) => ({ count: 1, date: tipsAt.toISOString().slice(0, 10) }));
+}

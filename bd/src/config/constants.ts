@@ -10,6 +10,43 @@ export const MAX_PAGE_SIZE = 100;
 
 export const REGISTRATION_CHART_DAYS = 14;
 
+/**
+ * Admin "Website visitors" ranges: how many buckets of which size each one
+ * charts. The current (partial) bucket is the last point; the "vs prev"
+ * comparison uses the same number of buckets immediately before.
+ */
+export const VISIT_RANGES = {
+  month: { bucket: 'week', count: 5 },
+  quarter: { bucket: 'week', count: 13 },
+  year: { bucket: 'month', count: 12 },
+} as const satisfies Record<string, { bucket: 'month' | 'week'; count: number }>;
+
+/** FIBA quarter length; overtimes are 5 minutes (see live-games.service). */
+export const LIVE_PERIOD_SECONDS = 10 * 60;
+
+/** Months of games on the admin "Game timeline" chart. */
+export const GAME_TIMELINE_MONTHS = 6;
+
+// ─── Admin activity log ──────────────────────────────────────────────────────
+
+export const ACTIVITY_ACTIONS = ['CREATED', 'UPDATED', 'DELETED', 'STARTED', 'FINISHED'] as const;
+
+/** Every admin-managed subject that writes to the activity log. */
+export const ACTIVITY_ENTITIES = [
+  'executive',
+  'game',
+  'historyPhoto',
+  'liveGame',
+  'media',
+  'mediaAlbum',
+  'newsPost',
+  'player',
+  'shopProduct',
+  'siteContent',
+  'user',
+  'video',
+] as const;
+
 export const USER_SORT_FIELDS = ['createdAt', 'updatedAt', 'email', 'name', 'role'] as const;
 
 /**

@@ -142,7 +142,7 @@ describe('history-photos service', () => {
 
     const result = await historyPhotos.removeHistoryPhoto('p1');
 
-    expect(result).toEqual({ assetDeleted: true, deleted: true, id: 'p1' });
+    expect(result).toEqual({ assetDeleted: true, deleted: true, id: 'p1', publicId: 'root/gone' });
     expect(mockedDeleteImage).toHaveBeenCalledWith('root/gone');
     expect(mockedMedia.delete).toHaveBeenCalledWith({ where: { publicId: 'root/gone' } });
   });

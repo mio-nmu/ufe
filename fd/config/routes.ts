@@ -37,5 +37,6 @@ export const routes = {
     history: "/admin/history",
     general: "/admin/general",
     users: "/admin/users",
+    activity: "/admin/activity",
   },
 } as const;

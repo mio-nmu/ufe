@@ -1,14 +1,19 @@
 import { z } from 'zod';
 
+import { LIVE_PERIOD_SECONDS } from '../config/constants.js';
+
 /** One scorer action; the per-type requirements are enforced below. */
 export const liveGameActionSchema = z
   .object({
     amount: z.number().int().min(-300).max(300).optional(),
+    /** The tap moment in server time (epoch ms), from the scorer's
+     *  offset-corrected clock; the service bounds how far back it trusts it. */
+    at: z.number().int().positive().optional(),
     period: z.number().int().min(1).max(8).optional(), // 5–8 = OT1–OT4
     playerIds: z.array(z.string().min(1)).max(5).optional(),
     points: z.union([z.literal(1), z.literal(2), z.literal(3)]).optional(),
     running: z.boolean().optional(),
-    seconds: z.number().int().min(0).max(720).optional(),
+    seconds: z.number().int().min(0).max(LIVE_PERIOD_SECONDS).optional(),
     side: z.enum(['team', 'opponent']).optional(),
     type: z.enum([
       'score',

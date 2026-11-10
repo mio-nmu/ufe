@@ -2,6 +2,7 @@ import {
   BarChart3,
   CalendarDays,
   FileText,
+  History,
   Images,
   Info,
   LayoutDashboard,
@@ -67,6 +68,11 @@ const adminNavSections: NavSection[] = [
     items: [
       { href: routes.admin.general, label: "Ерөнхий мэдээлэл", icon: Info },
       { href: routes.admin.users, label: "Хэрэглэгчид", icon: Users },
+      {
+        href: routes.admin.activity,
+        label: "Өөрчлөлтийн түүх",
+        icon: History,
+      },
     ],
   },
 ];

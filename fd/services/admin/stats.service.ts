@@ -1,9 +1,12 @@
 import { api } from "@/lib/api-client";
-import type { AdminStats } from "@/types/api";
+import type { GameTimeline, VisitRange, VisitSeries } from "@/types/api";
 
 /** Admin-only dashboard statistics. */
 export const adminStatsService = {
-  getStats(): Promise<AdminStats> {
-    return api.get<AdminStats>("/api/v1/admin/stats");
+  getGameTimeline(): Promise<GameTimeline> {
+    return api.get<GameTimeline>("/api/v1/admin/stats/games");
+  },
+  getVisits(range: VisitRange): Promise<VisitSeries> {
+    return api.get<VisitSeries>(`/api/v1/admin/stats/visits?range=${range}`);
   },
 };

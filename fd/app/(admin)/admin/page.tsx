@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 
-import { AdminStatsPanel } from "@/components/admin/stats-panel";
+import { GameTimelineCard } from "@/components/admin/dashboard/game-timeline-card";
+import { RecentActivityCard } from "@/components/admin/dashboard/recent-activity-card";
+import { VisitorsCard } from "@/components/admin/dashboard/visitors-card";
 import { PageHeader } from "@/components/shared/page-header";
 
 export const metadata: Metadata = {
@@ -12,9 +14,13 @@ export default function AdminDashboardPage() {
     <div className="space-y-8">
       <PageHeader
         title="Admin dashboard"
-        description="Live totals and the last 14 days of registrations."
+        description="Audience reach, games played and the latest admin changes."
       />
-      <AdminStatsPanel />
+      <VisitorsCard />
+      <div className="grid items-start gap-8 lg:grid-cols-2">
+        <GameTimelineCard />
+        <RecentActivityCard />
+      </div>
     </div>
   );
 }

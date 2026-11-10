@@ -1,12 +1,17 @@
 import type { Request, Response } from 'express';
 
 import { subscribeLiveGameEvents } from '../lib/live-game-events.js';
+import { recordActivity } from '../services/admin/activity.service.js';
 import * as liveGames from '../services/live-games.service.js';
 import { ok } from '../utils/http.js';
 
 export async function action(req: Request, res: Response): Promise<void> {
   const { id } = req.params as { id: string };
-  ok(res, await liveGames.applyAction(id, req.body));
+  const result = await liveGames.applyAction(id, req.body);
+  // Scorer clicks are too granular for the activity feed — only the
+  // milestones (first tip-off, final buzzer) are logged.
+  if (result.milestone) await recordMilestone(req, result.milestone, result.state);
+  ok(res, result);
 }
 
 export async function ensureState(req: Request, res: Response): Promise<void> {
@@ -41,5 +46,20 @@ export function stream(req: Request, res: Response): void {
   req.on('close', () => {
     clearInterval(heartbeat);
     unsubscribe();
+  });
+}
+
+async function recordMilestone(
+  req: Request,
+  action: 'FINISHED' | 'STARTED',
+  state: liveGames.LiveGameState,
+): Promise<void> {
+  const opponent = (await liveGames.getGameOpponent(state.gameId)) ?? 'opponent';
+  const score = action === 'FINISHED' ? ` ${state.teamScore}–${state.opponentScore}` : '';
+  await recordActivity(req.user, {
+    action,
+    entity: 'liveGame',
+    entityId: state.gameId,
+    label: `vs ${opponent}${score}`,
   });
 }

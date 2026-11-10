@@ -17,21 +17,36 @@ const envSchema = z.object({
   DATABASE_URL: z.string().min(1, 'is required — copy .env.example to .env (see README)'),
   JWT_ACCESS_SECRET: z.string().min(32, 'must be at least 32 characters'),
   JWT_REFRESH_SECRET: z.string().min(32, 'must be at least 32 characters'),
+  // Viewers reading live scores, per IP — a whole venue can share one
+  // Wi-Fi address, so this sits well above the general limit.
+  LIVE_READ_RATE_LIMIT_MAX: z.coerce.number().int().min(1).default(6000),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
   MAX_UPLOAD_MB: z.coerce.number().int().min(1).max(50).default(20),
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   PIN_RATE_LIMIT_MAX: z.coerce.number().int().min(1).default(5),
   PORT: z.coerce.number().int().min(1).max(65535).default(4000),
-  // Generous: the live scorer fires 2-3 requests per click (action + event
-  // refresh + SSE-triggered refetch) and a busy game burns hundreds fast;
-  // credential and upload routes keep their own stricter limiters.
+  // General per-IP limit. Live scorer taps and live score reads are counted
+  // by their own limiters instead; credential and upload routes stay stricter.
   RATE_LIMIT_MAX: z.coerce.number().int().min(1).default(2000),
   RATE_LIMIT_WINDOW_MS: z.coerce.number().int().min(1_000).default(900_000),
   REFRESH_TOKEN_TTL_DAYS: z.coerce.number().int().min(1).max(90).default(7),
+  // Scorer taps, per admin account (not IP): a busy game is ~500 actions.
+  SCORER_RATE_LIMIT_MAX: z.coerce.number().int().min(1).default(3000),
   // Shared password of the three named staff accounts (manager / editor /
   // edumanager). Short by request for now — rotate before production.
   STAFF_PASSWORD: z.string().min(1).default('9876'),
   STORAGE_PROVIDER: z.string().default(''), // '' (disabled) | 'cloudinary'
+  // Supabase Realtime for live-score push (server only). The SECRET key
+  // (sb_secret_… or the legacy service_role key) — never the publishable
+  // one. Either left empty disables hosted push; viewers then rely on the
+  // local stream + resync polling.
+  SUPABASE_SECRET_KEY: z.string().default(''),
+  SUPABASE_URL: z
+    .string()
+    .default('')
+    .refine((value) => value === '' || isProjectUrl(value), {
+      message: 'must be your Supabase project URL, e.g. https://abcd1234.supabase.co',
+    }),
 });
 
 export const env = loadEnv();
@@ -173,4 +188,15 @@ function normalizeCookieDomain(value: string | undefined): string {
   return /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/u.test(host)
     ? host
     : '';
+}
+
+/** A plain https origin with a real hostname — catches paste slips such as
+ *  "https:https://…" (parsed as the host "https") or a missing scheme. */
+function isProjectUrl(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:' && url.hostname.includes('.') && url.pathname === '/';
+  } catch {
+    return false;
+  }
 }

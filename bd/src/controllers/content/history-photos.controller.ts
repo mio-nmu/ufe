@@ -5,6 +5,7 @@ import type {
   UpdateHistoryPhotoInput,
 } from '../../validators/content/content.validators.js';
 
+import { assetLabel, recordActivity } from '../../services/admin/activity.service.js';
 import * as historyPhotos from '../../services/content/history-photos.service.js';
 import { ok } from '../../utils/http.js';
 
@@ -22,12 +23,15 @@ export async function createHistoryPhoto(req: Request, res: Response): Promise<v
     publicId: input.publicId,
     sortOrder: input.sortOrder,
   });
+  await recordPhoto(req, 'CREATED', photo);
   ok(res, { photo }, 201);
 }
 
 export async function deleteHistoryPhoto(req: Request, res: Response): Promise<void> {
   const { id } = req.params as unknown as { id: string };
-  ok(res, await historyPhotos.removeHistoryPhoto(id));
+  const result = await historyPhotos.removeHistoryPhoto(id);
+  await recordPhoto(req, 'DELETED', { caption: null, id, publicId: result.publicId });
+  ok(res, result);
 }
 
 export async function listHistoryPhotos(_req: Request, res: Response): Promise<void> {
@@ -43,5 +47,19 @@ export async function updateHistoryPhoto(req: Request, res: Response): Promise<v
     publicId: input.publicId,
     sortOrder: input.sortOrder,
   });
+  await recordPhoto(req, 'UPDATED', photo);
   ok(res, { photo });
+}
+
+function recordPhoto(
+  req: Request,
+  action: 'CREATED' | 'DELETED' | 'UPDATED',
+  photo: { caption: null | string; id: string; publicId: string },
+): Promise<void> {
+  return recordActivity(req.user, {
+    action,
+    entity: 'historyPhoto',
+    entityId: photo.id,
+    label: assetLabel(photo.caption, photo.publicId),
+  });
 }

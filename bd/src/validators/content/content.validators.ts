@@ -25,10 +25,27 @@ const optionalText = (max: number) =>
     .nullish()
     .transform((value) => (value === '' || value === null ? null : value));
 
+/** Text with a database default (venue, competition, news category): the
+ *  admin form sends a blank field as null, which means "not given" — the
+ *  default applies on create and the stored value stays on edit. */
+const defaultedText = (max: number) =>
+  z.preprocess(
+    (value) =>
+      value === null || (typeof value === 'string' && value.trim() === '') ? undefined : value,
+    z.string().trim().min(1).max(max).optional(),
+  );
+
 const optionalInt = (min: number, max: number) =>
   z.preprocess(
     (value) => (value === '' || value === null ? undefined : value),
     z.number().int().min(min).max(max).optional(),
+  );
+
+/** Int for a nullable column: '' or null → null (clears it), absent → untouched. */
+const nullableInt = (min: number, max: number) =>
+  z.preprocess(
+    (value) => (value === '' ? null : value),
+    z.number().int().min(min).max(max).nullish(),
   );
 
 const optionalFloat = (min: number, max: number) =>
@@ -70,7 +87,7 @@ export const slugParamSchema = z.object({
 
 // ── News ─────────────────────────────────────────────────────────────────────
 const newsFields = {
-  category: z.string().trim().min(1).max(60).optional(),
+  category: defaultedText(60),
   content: text(50_000),
   coverImage: optionalText(600),
   excerpt: text(600),
@@ -148,8 +165,15 @@ export const listPlayersQuerySchema = z.object({
 // ── Games ────────────────────────────────────────────────────────────────────
 const gameStatusEnum = z.enum(['CANCELLED', 'FINAL', 'SCHEDULED']);
 
+/** The admin select's "—" sends null: treat it as "not given" so the
+ *  SCHEDULED column default applies on create and edits keep the stored value. */
+const gameStatusField = z.preprocess(
+  (value) => (value === '' || value === null ? undefined : value),
+  gameStatusEnum.optional(),
+);
+
 const gameFields = {
-  competition: z.string().trim().min(1).max(160).optional(),
+  competition: defaultedText(160),
   isHome: optionalBool,
   note: optionalText(500),
   opponent: text(120),
@@ -163,16 +187,16 @@ const gameFields = {
       .nullish(),
   ),
   opponentLogo: optionalText(600),
-  opponentScore: optionalInt(0, 300),
+  opponentScore: nullableInt(0, 300),
   opponentShort: optionalText(12),
   round: optionalText(80),
   sortOrder: optionalInt(0, 9999),
-  status: gameStatusEnum.optional(),
+  status: gameStatusField,
   streamUrl: optionalText(600),
-  teamScore: optionalInt(0, 300),
+  teamScore: nullableInt(0, 300),
   ticketUrl: optionalText(600),
   tipsAt: z.coerce.date(),
-  venue: z.string().trim().min(1).max(120).optional(),
+  venue: defaultedText(120),
 };
 
 export const createGameSchema = z.object(gameFields);
