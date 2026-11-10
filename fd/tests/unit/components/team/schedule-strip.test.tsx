@@ -79,3 +79,90 @@ describe("ScheduleStrip opponent colour", () => {
     expect(container.textContent).not.toContain("NUM");
   });
 });
+
+describe("ScheduleStrip opening position", () => {
+  it("scrolls the next scheduled game to the start of the strip", () => {
+    const now = Date.now();
+    const at = (hours: number) =>
+      new Date(now + hours * 3_600_000).toISOString();
+    const games = [
+      game({ id: "old", tipsAt: at(-72) }),
+      game({
+        id: "next",
+        status: "SCHEDULED",
+        tipsAt: at(24),
+        teamScore: null,
+        opponentScore: null,
+      }),
+      game({
+        id: "later",
+        status: "SCHEDULED",
+        tipsAt: at(96),
+        teamScore: null,
+        opponentScore: null,
+      }),
+    ];
+    // jsdom has no layout: give each card a fixed 300px-wide slot.
+    const spy = vi
+      .spyOn(HTMLElement.prototype, "getBoundingClientRect")
+      .mockImplementation(function (this: HTMLElement) {
+        const index = ["old", "next", "later"].indexOf(
+          this.dataset.gameId ?? "",
+        );
+        const left = index < 0 ? 0 : index * 300;
+        return {
+          left,
+          right: left + 300,
+          top: 0,
+          bottom: 0,
+          width: 300,
+          height: 0,
+          x: left,
+          y: 0,
+          toJSON: () => ({}),
+        };
+      });
+
+    const { getByRole } = render(<ScheduleStrip games={games} />);
+
+    expect(getByRole("region", { name: "Тоглолтын хуваарь" }).scrollLeft).toBe(
+      300,
+    );
+    spy.mockRestore();
+  });
+
+  it("stays at the start when every game is finished", () => {
+    const { getByRole } = render(
+      <ScheduleStrip games={[game({ id: "a" }), game({ id: "b" })]} />,
+    );
+    expect(getByRole("region", { name: "Тоглолтын хуваарь" }).scrollLeft).toBe(
+      0,
+    );
+  });
+});
+
+describe("ScheduleStrip arrows", () => {
+  it("shows the next arrow when more games are off-screen and steps one card", () => {
+    const widths = vi
+      .spyOn(HTMLElement.prototype, "scrollWidth", "get")
+      .mockReturnValue(900);
+    const client = vi
+      .spyOn(HTMLElement.prototype, "clientWidth", "get")
+      .mockReturnValue(300);
+    const scrollBy = vi.fn();
+    HTMLElement.prototype.scrollBy = scrollBy;
+
+    const { getByRole, queryByRole } = render(
+      <ScheduleStrip
+        games={[game({ id: "a" }), game({ id: "b" }), game({ id: "c" })]}
+      />,
+    );
+
+    expect(queryByRole("button", { name: "Өмнөх тоглолт" })).toBeNull();
+    getByRole("button", { name: "Дараагийн тоглолт" }).click();
+    expect(scrollBy).toHaveBeenCalledWith({ behavior: "smooth", left: 300 });
+
+    widths.mockRestore();
+    client.mockRestore();
+  });
+});

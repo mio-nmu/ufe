@@ -3,7 +3,6 @@ import { CONTENT_TAG } from "@/lib/cache-tags";
 import {
   frontOfficeFallback,
   photosFallback,
-  scheduleFallback,
   shopFallback,
   videosFallback,
 } from "@/content/pages";
@@ -175,7 +174,7 @@ export async function getNewsPost(slug: string): Promise<NewsPostRow | null> {
 
 export async function getGames(): Promise<GameRow[]> {
   const data = await getJson<{ items: GameRow[] }>("/games?limit=100", "games");
-  return data?.items?.length ? data.items : scheduleFallback;
+  return data?.items ?? [];
 }
 
 /**

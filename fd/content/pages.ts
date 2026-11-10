@@ -6,7 +6,6 @@
 
 import type {
   Executive,
-  GameRow,
   MediaAlbumRow,
   ShopProductRow,
   VideoRow,
@@ -151,31 +150,6 @@ export const frontOfficeHeroFallback = {
 };
 
 // ── Хуваарь (schedule) ───────────────────────────────────────────────────────
-
-function gameAt(date: string, hourUtc = 11): string {
-  return `${date}T${String(hourUtc).padStart(2, "0")}:00:00.000Z`;
-}
-
-export const scheduleFallback: GameRow[] = [
-  {
-    competition:
-      "Их сургуулиудын сагсан бөмбөгийн аварга шалгаруулах тэмцээн 2026/27",
-    id: "000000000000000000000001",
-    isHome: true,
-    note: "Opening match",
-    opponent: "NUM Falcons",
-    opponentLogo: null,
-    opponentScore: null,
-    opponentShort: "NUM Falcons",
-    round: "I тойрог",
-    status: "SCHEDULED",
-    streamUrl: null,
-    teamScore: null,
-    ticketUrl: null,
-    tipsAt: gameAt("2026-10-24", 10),
-    venue: "Steppe Arena",
-  },
-];
 
 export const scheduleHeroFallback = {
   intro:

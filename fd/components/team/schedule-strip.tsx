@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 
 import { routes } from "@/config/routes";
 import { formatClock, periodLabel, useLiveGame } from "@/hooks/use-live-game";
@@ -10,18 +11,71 @@ import { isHexColor, readableOn } from "@/lib/color";
 import { gameOpponentLogo } from "@/lib/team-logos";
 import type { GameRow } from "@/types/content";
 
+/** A game still counts as "now" for this long after tip-off (it may be live). */
+const LIVE_WINDOW_MS = 3 * 60 * 60 * 1000;
+
 export function ScheduleStrip({ games }: { games: GameRow[] }) {
+  const scrollerRef = useRef<HTMLDivElement>(null);
+  const [canPrev, setCanPrev] = useState(false);
+  const [canNext, setCanNext] = useState(false);
+
+  // Arrows show only when there is a card on that side.
+  const updateArrows = () => {
+    const scroller = scrollerRef.current;
+    if (!scroller) return;
+    setCanPrev(scroller.scrollLeft > 1);
+    setCanNext(
+      scroller.scrollLeft + scroller.clientWidth < scroller.scrollWidth - 1,
+    );
+  };
+
+  // Open on the next (or in-progress) game; earlier results stay reachable
+  // with the arrows. Runs on the client only — "now" is the visitor's clock.
+  useEffect(() => {
+    const scroller = scrollerRef.current;
+    const target = nextGame(games, Date.now());
+    const card =
+      scroller && target
+        ? scroller.querySelector<HTMLElement>(`[data-game-id="${target.id}"]`)
+        : null;
+    if (scroller && card) {
+      scroller.scrollLeft +=
+        card.getBoundingClientRect().left -
+        scroller.getBoundingClientRect().left;
+    }
+    updateArrows();
+    window.addEventListener("resize", updateArrows);
+    return () => window.removeEventListener("resize", updateArrows);
+  }, [games]);
+
+  /** Moves one card (one strip width) left or right. */
+  const step = (direction: -1 | 1) => {
+    const scroller = scrollerRef.current;
+    scroller?.scrollBy({
+      behavior: "smooth",
+      left: direction * scroller.clientWidth,
+    });
+  };
+
   return (
     <section
       aria-label="Сүүлийн үр дүн болон удахгүй болох тоглолтууд"
       className="border-line bg-paper-soft w-full overflow-hidden border-b"
     >
-      <div className="team-shell py-5">
+      <div className="team-shell relative py-5">
         <div
+          ref={scrollerRef}
           role="region"
           aria-label="Тоглолтын хуваарь"
           tabIndex={0}
-          className="no-scrollbar focus-visible:ring-ink flex max-w-full min-w-0 overflow-x-auto overflow-y-hidden outline-none focus-visible:ring-2 focus-visible:ring-inset"
+          onScroll={updateArrows}
+          onKeyDown={(event) => {
+            if (event.key === "ArrowLeft") step(-1);
+            else if (event.key === "ArrowRight") step(1);
+            else return;
+            event.preventDefault();
+          }}
+          className="no-scrollbar focus-visible:ring-ink flex max-w-full min-w-0 snap-x snap-mandatory overflow-x-auto overflow-y-hidden outline-none focus-visible:ring-2 focus-visible:ring-inset"
         >
           {games.length ? (
             games.map((game) => <ScheduleCard key={game.id} game={game} />)
@@ -34,8 +88,37 @@ export function ScheduleStrip({ games }: { games: GameRow[] }) {
             </Link>
           )}
         </div>
+        {canPrev ? (
+          <StripArrow direction="prev" onClick={() => step(-1)} />
+        ) : null}
+        {canNext ? (
+          <StripArrow direction="next" onClick={() => step(1)} />
+        ) : null}
       </div>
     </section>
+  );
+}
+
+/** Round arrow button over the strip's left or right edge. */
+function StripArrow({
+  direction,
+  onClick,
+}: {
+  direction: "next" | "prev";
+  onClick: () => void;
+}) {
+  const Icon = direction === "prev" ? ChevronLeft : ChevronRight;
+  return (
+    <button
+      type="button"
+      aria-label={direction === "prev" ? "Өмнөх тоглолт" : "Дараагийн тоглолт"}
+      onClick={onClick}
+      className={`bg-paper/95 text-ink shadow-card hover:bg-paper absolute top-1/2 z-10 flex size-8 -translate-y-1/2 items-center justify-center rounded-full transition-colors focus-visible:outline-2 focus-visible:outline-white md:size-9 ${
+        direction === "prev" ? "left-1 md:left-10" : "right-1 md:right-10"
+      }`}
+    >
+      <Icon className="size-5" aria-hidden="true" />
+    </button>
   );
 }
 
@@ -127,6 +210,7 @@ function ScheduleCard({ game }: { game: GameRow }) {
   return (
     <Link
       href={routes.site.game(game.id)}
+      data-game-id={game.id}
       aria-label={`${date.month} ${date.day}, ${game.opponent}, ${isLive ? (activeState?.status === "HALFTIME" ? "halftime" : "live") : isPreGame ? "pre-game" : isFinal || scoredFinal ? "finished" : isCancelled ? "cancelled" : gameTime(game.tipsAt)}`}
       className="group/card bg-brand shadow-card hover:shadow-card-hover relative flex h-[112px] w-full shrink-0 snap-start flex-col justify-between overflow-hidden rounded-lg p-3 text-white transition-shadow duration-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-4px] focus-visible:outline-white"
     >
@@ -259,4 +343,20 @@ function gameTime(iso: string) {
     hourCycle: "h23",
     timeZone: "Asia/Ulaanbaatar",
   }).format(new Date(iso));
+}
+
+/**
+ * The first game (by tip-off) that is not over: scheduled and either still
+ * ahead or tipped off within the live window. Null when every game is done.
+ */
+function nextGame(games: GameRow[], nowMs: number): GameRow | null {
+  return (
+    [...games]
+      .sort((a, b) => a.tipsAt.localeCompare(b.tipsAt))
+      .find(
+        (game) =>
+          game.status === "SCHEDULED" &&
+          new Date(game.tipsAt).getTime() > nowMs - LIVE_WINDOW_MS,
+      ) ?? null
+  );
 }
